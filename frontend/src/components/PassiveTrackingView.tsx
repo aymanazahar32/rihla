@@ -132,6 +132,14 @@ export function PassiveTrackingView({ ride, currentUserId, currentUserName }: Pr
         polylineOptions: { strokeColor: "#f97316", strokeWeight: 5, strokeOpacity: 0.85 },
       });
       rendererRef.current.setMap(map);
+
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => {
+          map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
     });
     return () => { cancelled = true; };
   }, []);

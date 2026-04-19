@@ -31,7 +31,7 @@ export function HomeMap({ masjids, onMasjidClick, userLocation, height = "260px"
     let cancelled = false;
     importLibrary("maps").then(() => {
       if (cancelled || !containerRef.current || mapRef.current) return;
-      mapRef.current = new google.maps.Map(containerRef.current, {
+      const map = new google.maps.Map(containerRef.current, {
         center: { lat: MAP_DEFAULT_CENTER[0], lng: MAP_DEFAULT_CENTER[1] },
         zoom: MAP_DEFAULT_ZOOM,
         zoomControl: true,
@@ -39,10 +39,21 @@ export function HomeMap({ masjids, onMasjidClick, userLocation, height = "260px"
         mapTypeControl: false,
         fullscreenControl: false,
       });
+      mapRef.current = map;
       setMapReady(true);
+
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => {
+          if (userLocation) return;
+          map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          map.setZoom(13);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [userLocation]);
 
   // Centre on user location and show "you are here" marker
   useEffect(() => {

@@ -60,6 +60,15 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
       mapRef.current = map;
       geocoderRef.current = new google.maps.Geocoder();
 
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => {
+          map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          map.setZoom(14);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
+
       map.addListener("click", (e: google.maps.MapMouseEvent) => {
         if (e.latLng) placeMarker(e.latLng.lat(), e.latLng.lng());
       });
@@ -106,7 +115,7 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <MapPin className="w-3.5 h-3.5" />
-          Arlington, TX area — search an address or tap the map to drop a pin.
+          Search an address, use your current location, or tap the map to drop a pin.
         </p>
         <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={useCurrentLocation} disabled={locating}>
           {locating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5 mr-1" />}

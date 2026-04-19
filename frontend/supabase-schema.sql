@@ -102,6 +102,8 @@ create table if not exists rides (
   prayer_name         text,
   driver_id           uuid not null references profiles on delete cascade,
   departure_location  text not null,
+  departure_lat       double precision,
+  departure_lng       double precision,
   departure_time      timestamptz not null,
   seats_total         int not null,
   seats_available     int not null,
@@ -186,7 +188,12 @@ create table if not exists ride_requests (
   prayer_name      text,
   requester_id     uuid not null references profiles on delete cascade,
   pickup_location  text not null,
+  pickup_lat       double precision,
+  pickup_lng       double precision,
   desired_time     timestamptz not null,
+  status           text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  accepted_by      uuid references profiles on delete set null,
+  accepted_at      timestamptz,
   notes            text,
   created_at       timestamptz default now()
 );

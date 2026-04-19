@@ -84,6 +84,15 @@ export function LiveMap({ rideId, height = "360px", isDriver = false }: Props) {
         polylineOptions: { strokeColor: "#f97316", strokeWeight: 5, strokeOpacity: 0.8 },
       });
       rendererRef.current.setMap(map);
+
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => {
+          map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          map.setZoom(14);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
     });
     return () => { cancelled = true; };
   }, []);

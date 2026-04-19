@@ -146,6 +146,14 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
         polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 6, strokeOpacity: 0.85 },
       });
       rendererRef.current.setMap(map);
+
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => {
+          map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
     });
     return () => { cancelled = true; };
   }, []);
@@ -159,7 +167,7 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
     }
     const address = ride.event?.location ?? ride.masjid?.name ?? ride.errand?.title;
     if (!address || !geocoderRef.current) return;
-    geocoderRef.current.geocode({ address: `${address}, Arlington TX` }, (results, status) => {
+    geocoderRef.current.geocode({ address }, (results, status) => {
       if (status === "OK" && results?.[0]?.geometry?.location) {
         const lat = results[0].geometry.location.lat();
         const lng = results[0].geometry.location.lng();
