@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowRight, Mic, MicOff, Sparkles, X } from "lucide-react";
+import { useGetMe } from "@/lib/api-client";
 import { useNLParser } from "@/lib/useNLParser";
 
 export function NLCreateButton() {
@@ -16,8 +17,10 @@ export function NLCreateButton() {
     setIsOpen(false);
   };
 
-  // Hidden on home page — it already has the inline NL bar
-  if (location === "/") return null;
+  const { data: user } = useGetMe();
+
+  // Hidden on home page (has its own inline bar) and for unauthenticated users
+  if (location === "/" || !user) return null;
 
   return (
     <>
