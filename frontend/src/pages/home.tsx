@@ -20,7 +20,7 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
   const [ratingRide, setRatingRide] = useState<any>(null);
   const prevStatusRef = useRef<Record<string, string>>({});
-  const { location: userLocation } = useGeolocation();
+  const { location: userLocation, loading: locationLoading } = useGeolocation();
 
   const { nlText, setNlText, nlLoading, nlError, setNlError, isListening, toggleMic, handleNLSubmit } = useNLParser();
 
@@ -210,7 +210,7 @@ export default function HomePage() {
             <HomeMap
               masjids={masjids}
               onMasjidClick={handleMasjidClick}
-              userLocation={userLocation}
+              userLocation={locationLoading ? undefined : userLocation}
               height="100%"
             />
           )}
