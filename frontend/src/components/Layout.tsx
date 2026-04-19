@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CarFront, LogOut, Moon, Calendar, ShoppingBag, MapPin, ShieldCheck, Home, User, LogIn } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NLCreateButton } from "@/components/NLCreateButton";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home },
@@ -143,6 +144,8 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1 flex flex-col container mx-auto max-w-7xl p-4 md:p-8 pb-24 md:pb-8">
         {children}
       </main>
+
+      <NLCreateButton />
 
       {!isLoading && !user && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-40">
