@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useCreateRide, useGetMe, useGetMasjid, canUserOfferRides } from "@/lib/api-client";
-import { masjidPrayerField, parseMasjidTimeToDate, toDatetimeLocalValue } from "@/lib/prayer-time";
+import { useCreateRide, useGetMe, useGetMasjid, canUserOfferRides, useAladhanTimings } from "@/lib/api-client";
+import { parseMasjidTimeToDate, toDatetimeLocalValue } from "@/lib/prayer-time";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,25 +33,23 @@ export default function RideCreatePage() {
   const [notes, setNotes] = useState("");
   const prefilledPrayerTime = useRef(false);
 
-  const { data: masjid } = useGetMasjid(contextId, {
-    query: { enabled: contextType === "masjid" && contextId > 0 },
-  });
+  const { location } = useGeolocation();
+  const { data: timings } = useAladhanTimings(location?.lat, location?.lng);
 
   useEffect(() => {
     prefilledPrayerTime.current = false;
   }, [contextType, contextId, prayerName]);
 
   useEffect(() => {
-    if (contextType !== "masjid" || !masjid || !prayerName || prefilledPrayerTime.current) return;
-    const field = masjidPrayerField(prayerName);
-    if (!field) return;
-    const raw = (masjid as Record<string, string | undefined>)[field];
-    if (!raw) return;
-    const parsed = parseMasjidTimeToDate(raw);
+    if (contextType !== "masjid" || !prayerName || !timings || prefilledPrayerTime.current) return;
+    const apiPrayerKey = prayerName.charAt(0).toUpperCase() + prayerName.slice(1);
+    const timeStr = timings[apiPrayerKey as keyof typeof timings];
+    if (!timeStr) return;
+    const parsed = parseMasjidTimeToDate(timeStr);
     if (!parsed) return;
     setDepartureTime(toDatetimeLocalValue(parsed));
     prefilledPrayerTime.current = true;
-  }, [contextType, masjid, prayerName]);
+  }, [contextType, prayerName, timings]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,9 +123,9 @@ export default function RideCreatePage() {
                 <div className="space-y-2">
                   <Label>Departure time</Label>
                   <DatetimeLocalInput value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} required />
-                  {contextType === "masjid" && prayerName && masjid && (
+                  {contextType === "masjid" && prayerName && timings && (
                     <p className="text-xs text-muted-foreground">
-                      Defaults to today&apos;s <span className="font-medium text-foreground">{prayerName}</span> iqama time from the masjid timetable — change if you leave earlier or another day.
+                      Defaults to today&apos;s exact <span className="font-medium text-foreground">{prayerName}</span> Adhan time for your location — adjust for Iqama or travel time.
                     </p>
                   )}
                 </div>
