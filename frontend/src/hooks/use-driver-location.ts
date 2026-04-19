@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUserId } from "@/lib/api-client";
 
 export function useDriverLocation(rideId: number) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -11,8 +10,14 @@ export function useDriverLocation(rideId: number) {
     let watchId: number;
 
     const start = async () => {
-      const userId = await getCurrentUserId().catch(() => null);
-      if (!userId) return;
+      if (!navigator.geolocation) {
+        setError("Geolocation is not supported by this browser.");
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const userId = user.id;
 
       watchId = navigator.geolocation.watchPosition(
         async (pos) => {
@@ -22,16 +27,17 @@ export function useDriverLocation(rideId: number) {
 
           const now = Date.now();
           if (now - lastWriteRef.current >= 3000) {
-            lastWriteRef.current = now;
-            await supabase
+            const { error: writeError } = await supabase
               .from("rides")
               .update({ current_lat: lat, current_lng: lng })
               .eq("id", rideId)
               .eq("driver_id", userId);
+            if (writeError) setError(writeError.message);
+            else lastWriteRef.current = Date.now();
           }
         },
         (err) => setError(err.message),
-        { enableHighAccuracy: true, timeout: 15000 },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
       );
     };
 
