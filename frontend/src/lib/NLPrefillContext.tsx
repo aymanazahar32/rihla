@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
 export interface ParsedIntent {
   intent: "offer" | "request";
@@ -17,7 +17,7 @@ export interface ParsedIntent {
   confidence: Record<string, number>;
 }
 
-interface NLPrefillCtx {
+export interface NLPrefillCtx {
   prefill: ParsedIntent | null;
   setPrefill: (p: ParsedIntent | null) => void;
   consume: () => ParsedIntent | null;
@@ -28,11 +28,14 @@ const Ctx = createContext<NLPrefillCtx | null>(null);
 export function NLPrefillProvider({ children }: { children: ReactNode }) {
   const [prefill, setPrefill] = useState<ParsedIntent | null>(null);
 
-  const consume = (): ParsedIntent | null => {
-    const p = prefill;
-    setPrefill(null);
-    return p;
-  };
+  const consume = useCallback((): ParsedIntent | null => {
+    let snapshot: ParsedIntent | null = null;
+    setPrefill((current) => {
+      snapshot = current;
+      return null;
+    });
+    return snapshot;
+  }, []);
 
   return <Ctx.Provider value={{ prefill, setPrefill, consume }}>{children}</Ctx.Provider>;
 }
