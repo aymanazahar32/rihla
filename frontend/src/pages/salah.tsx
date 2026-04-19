@@ -1,13 +1,12 @@
 import { useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useListMasjids, useMasjidCarpoolCounts, useAladhanTimings } from "@/lib/api-client";
-import { useMode } from "@/lib/ModeContext";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  MapPin, ArrowRight, CarFront, HandHelping,
+  MapPin, ArrowRight,
   Moon, Sun, Sunset, Sunrise, Star
 } from "lucide-react";
 
@@ -29,7 +28,6 @@ const PRAYERS = [
 ];
 
 export default function SalahPage() {
-  const { mode } = useMode();
   const [, setLocationPath] = useLocation();
   const { location } = useGeolocation();
   const { data: masjids = [], isLoading: masjidsLoading } = useListMasjids();
@@ -96,10 +94,6 @@ export default function SalahPage() {
       ) : (
         <div className="space-y-3 pb-24">
           {sortedMasjids.map((m: any) => {
-            const rideCount = (counts as any)[m.id]?.rides ?? 0;
-            const reqCount  = (counts as any)[m.id]?.requests ?? 0;
-            const hasActivity = rideCount > 0 || reqCount > 0;
-
             return (
               <Link key={m.id} href={`/salah/${m.id}`} className="block">
               <Card
@@ -117,37 +111,21 @@ export default function SalahPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {hasActivity && (
-                        <div className="flex items-center gap-1">
-                          {rideCount > 0 && (
-                            <Badge variant="secondary" className="text-[10px] gap-1 bg-primary/10 text-primary border-0">
-                              <CarFront className="w-2.5 h-2.5" />{rideCount}
-                            </Badge>
-                          )}
-                          {reqCount > 0 && (
-                            <Badge variant="secondary" className="text-[10px] gap-1 bg-amber-100 text-amber-700 border-0">
-                              <HandHelping className="w-2.5 h-2.5" />{reqCount}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
                   </div>
 
                   {/* Prayer grid */}
                   <div className="grid grid-cols-5 border-t border-border/40">
-                    {PRAYERS.map(({ key, label, timingKey, Icon, bg, text, dot }) => (
+                    {PRAYERS.map(({ key, label, timingKey, Icon, bg, text, dot }) => {
+                      const prayerCounts = (counts as any)[m.id]?.byPrayer?.[label];
+                      const prayerRides = prayerCounts?.rides ?? 0;
+                      return (
                       <button
                         key={key}
-                        className="flex flex-col items-center gap-1 py-3 px-1 hover:bg-muted/60 active:bg-muted transition-colors relative group"
+                        className="flex flex-col items-center gap-0.5 py-3 px-1 hover:bg-muted/60 active:bg-muted transition-colors relative group"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const target = mode === "riding"
-                            ? `/requests/new?contextType=masjid&contextId=${m.id}&prayerName=${label}`
-                            : `/rides/new?contextType=masjid&contextId=${m.id}&prayerName=${label}`;
-                          setLocationPath(target);
+                          setLocationPath(`/match?contextType=masjid&contextId=${m.id}&prayerName=${label}`);
                         }}
                       >
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bg} group-hover:scale-110 transition-transform`}>
@@ -157,10 +135,15 @@ export default function SalahPage() {
                         <span className="text-[10px] font-bold tabular-nums">
                           {timings ? timings[timingKey as keyof typeof timings] ?? "—" : "—"}
                         </span>
-                        {/* subtle bottom accent on hover */}
+                        {prayerRides > 0 ? (
+                          <span className={`text-[9px] font-bold ${text}`}>{prayerRides} ride{prayerRides !== 1 ? "s" : ""}</span>
+                        ) : (
+                          <span className="text-[9px] text-muted-foreground/50">tap</span>
+                        )}
                         <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full ${dot} opacity-0 group-hover:opacity-100 transition-opacity`} />
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Jumu'ah pill if set */}
@@ -174,13 +157,10 @@ export default function SalahPage() {
                         className="ml-auto text-[10px] text-primary font-semibold hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const target = mode === "riding"
-                            ? `/requests/new?contextType=masjid&contextId=${m.id}&prayerName=Jumu'ah`
-                            : `/rides/new?contextType=masjid&contextId=${m.id}&prayerName=Jumu'ah`;
-                          setLocationPath(target);
+                          setLocationPath(`/match?contextType=masjid&contextId=${m.id}&prayerName=Jumu%27ah`);
                         }}
                       >
-                        {mode === "riding" ? "Request ride →" : "Offer ride →"}
+                        View rides →
                       </button>
                     </div>
                   )}
