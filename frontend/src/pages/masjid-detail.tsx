@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useGetMasjid } from "@/lib/api-client";
+import { useGetMasjid, useAladhanTimings } from "@/lib/api-client";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,9 @@ const PRAYERS = [
 ];
 
 export default function MasjidDetailPage({ masjidId }: { masjidId: number }) {
+  const { location } = useGeolocation();
   const { data: masjid, isLoading } = useGetMasjid(masjidId);
+  const { data: timings } = useAladhanTimings(location?.lat, location?.lng);
   const [activePrayer, setActivePrayer] = useState<string>("dhuhr");
 
   if (isLoading) return <Layout><div className="h-64 animate-pulse bg-muted rounded-xl" /></Layout>;
@@ -50,7 +53,7 @@ export default function MasjidDetailPage({ masjidId }: { masjidId: number }) {
                 <Icon className={`w-4 h-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
                 <div className="text-left">
                   <div className={`text-sm font-semibold ${active ? "text-primary" : ""}`}>{p.label}</div>
-                  <div className="text-[10px] text-muted-foreground">{(masjid as any)[p.key]}</div>
+                  <div className="text-[10px] text-muted-foreground">{timings ? timings[p.label as keyof typeof timings] : '--:--'}</div>
                 </div>
               </button>
             );
