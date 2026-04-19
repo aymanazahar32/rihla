@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { importLibrary } from "@/lib/google-maps";
 import { useGetRide, useCompleteRide, useGetMe } from "@/lib/api-client";
 import { useDriverLocation } from "@/hooks/use-driver-location";
+import { MAP_DEFAULT_CENTER } from "@/lib/map-defaults";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -19,6 +20,8 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
   const rendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const serviceRef = useRef<google.maps.DirectionsService | null>(null);
+  const lastRouteRef = useRef(0);
 
   // Redirect non-drivers
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
     Promise.all([importLibrary("maps"), importLibrary("routes")]).then(() => {
       if (cancelled || !containerRef.current || mapRef.current) return;
       const map = new google.maps.Map(containerRef.current, {
-        center: { lat: 32.7357, lng: -97.1081 },
+        center: { lat: MAP_DEFAULT_CENTER[0], lng: MAP_DEFAULT_CENTER[1] },
         zoom: 15,
         zoomControl: true,
         streetViewControl: false,
@@ -41,6 +44,7 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
         fullscreenControl: false,
       });
       mapRef.current = map;
+      serviceRef.current = new google.maps.DirectionsService();
       rendererRef.current = new google.maps.DirectionsRenderer({
         suppressMarkers: true,
         polylineOptions: { strokeColor: "#f97316", strokeWeight: 5, strokeOpacity: 0.8 },
@@ -53,8 +57,8 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
   // Update map when driver moves
   useEffect(() => {
     const map = mapRef.current;
-    const renderer = rendererRef.current;
-    if (!map || !coords || !ride?.destinationLat || !ride?.destinationLng) return;
+    const service = serviceRef.current;
+    if (!map || !service || !coords || !ride?.destinationLat || !ride?.destinationLng) return;
 
     const origin = new google.maps.LatLng(coords.lat, coords.lng);
     const destination = new google.maps.LatLng(ride.destinationLat, ride.destinationLng);
@@ -74,12 +78,18 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
     }
     map.panTo(origin);
 
-    new google.maps.DirectionsService().route(
-      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
-      (result, status) => {
-        if (status === "OK" && result) renderer!.setDirections(result);
-      },
-    );
+    const now = Date.now();
+    if (now - lastRouteRef.current >= 5000) {
+      lastRouteRef.current = now;
+      service.route(
+        { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+        (result, status) => {
+          if (status === "OK" && result && rendererRef.current) {
+            rendererRef.current.setDirections(result);
+          }
+        },
+      );
+    }
   }, [coords, ride]);
 
   const handleEndRide = () => {
@@ -116,7 +126,7 @@ export default function DriverModePage({ rideId }: { rideId: number }) {
           size="lg"
           className="rounded-full px-8 shadow-lg"
           onClick={handleEndRide}
-          disabled={complete.isPending}
+          disabled={complete.isPending || !ride || ride.status !== "in_progress"}
         >
           <CheckCircle2 className="w-4 h-4 mr-2" />
           {complete.isPending ? "Ending…" : "End Ride"}
