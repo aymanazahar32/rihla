@@ -47,7 +47,7 @@ export function useNLParser() {
     return undefined;
   };
 
-  const handleNLSubmit = async (onSuccess?: () => void) => {
+  const handleNLSubmit = async (onSuccess?: (() => void) | unknown) => {
     recognitionRef.current?.abort();
     setIsListening(false);
     if (!nlText.trim()) return;
@@ -67,7 +67,7 @@ export function useNLParser() {
         parsed.intent === "offer" ? parsed.departureTimeISO : parsed.desiredTimeISO;
       if (timeISO) params.set("timeISO", timeISO);
 
-      onSuccess?.();
+      if (typeof onSuccess === "function") onSuccess();
 
       if (contextId) {
         setLocation(`/match?${params.toString()}`);
@@ -115,6 +115,7 @@ export function useNLParser() {
     setNlText,
     nlLoading,
     nlError,
+    setNlError,
     isListening,
     toggleMic,
     handleNLSubmit,
