@@ -8,6 +8,7 @@ import { useLocation } from "wouter";
 import { useEffect, type ReactNode } from "react";
 import { Layout } from "@/components/Layout";
 import { ModeProvider } from "@/lib/ModeContext";
+import { NLPrefillProvider } from "@/lib/NLPrefillContext";
 
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -140,11 +141,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <ModeProvider>
-          <MatchingEngineMount />
-          <Router />
-          <Toaster />
-        </ModeProvider>
+        <NLPrefillProvider>
+          <ModeProvider>
+            <MatchingEngineMount />
+            <Router />
+            <Toaster />
+          </ModeProvider>
+        </NLPrefillProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
