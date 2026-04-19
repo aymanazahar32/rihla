@@ -39,8 +39,19 @@ alter table ride_participants
 
 
 -- ─── 5. Extended masjid seed data ────────────────────────────────────────────
--- Includes google_place_id values so GPS-mode masjid clicks resolve to a real
--- DB id without needing to INSERT (no auth required).
+-- Step A: stamp google_place_id onto any pre-existing rows that were seeded
+-- without one (from the original supabase-schema.sql). This must happen BEFORE
+-- the upsert below so the ON CONFLICT clause can match them correctly.
+
+update masjids set google_place_id = 'ChIJ_RmWFZBiToYRlFIuFwxVmGQ'
+  where name = 'Islamic Center of Arlington' and google_place_id is null;
+update masjids set google_place_id = 'ChIJr5sqdBFkToYR6t2DXR3bFoI'
+  where name = 'Dar El-Eman Islamic Center' and google_place_id is null;
+update masjids set google_place_id = 'ChIJW_-f7DVdToYR-z37kS6gOHM'
+  where name = 'Tarrant Islamic Association' and google_place_id is null;
+
+-- Step B: upsert the full masjid set. Existing rows (now with google_place_id)
+-- are updated in place; new rows are inserted. No duplicates created.
 
 insert into masjids (name, address, description, google_place_id, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah) values
   ('Islamic Center of Arlington',    '5000 Tarrant Rd, Arlington, TX 76016',         'Central masjid for Arlington & UTA students.', 'ChIJ_RmWFZBiToYRlFIuFwxVmGQ', 32.6953, -97.1681, '5:30 AM', '1:20 PM', '4:45 PM', '8:00 PM', '9:30 PM', '1:15 PM'),
@@ -60,14 +71,6 @@ on conflict (google_place_id) do update
       maghrib    = excluded.maghrib,
       isha       = excluded.isha,
       jumuah     = excluded.jumuah;
-
--- Also update existing rows that have no google_place_id yet
-update masjids set google_place_id = 'ChIJ_RmWFZBiToYRlFIuFwxVmGQ'
-  where name = 'Islamic Center of Arlington' and google_place_id is null;
-update masjids set google_place_id = 'ChIJr5sqdBFkToYR6t2DXR3bFoI'
-  where name = 'Dar El-Eman Islamic Center' and google_place_id is null;
-update masjids set google_place_id = 'ChIJW_-f7DVdToYR-z37kS6gOHM'
-  where name = 'Tarrant Islamic Association' and google_place_id is null;
 
 
 -- ─── 6. Demo auth users + profiles for mock rides ────────────────────────────
