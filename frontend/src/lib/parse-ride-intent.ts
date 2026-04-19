@@ -55,10 +55,10 @@ const TOOL = {
         properties: {
           contextType: { type: "number" },
           departureLocation: { type: "number" },
-          departureTime: { type: "number" },
+          departureTimeISO: { type: "number" },
           seats: { type: "number" },
           pickupLocation: { type: "number" },
-          desiredTime: { type: "number" },
+          desiredTimeISO: { type: "number" },
         },
       },
     },
@@ -72,8 +72,9 @@ export interface ParseResult {
 }
 
 export async function parseRideIntent(text: string): Promise<ParseResult> {
-  const now = new Date().toISOString();
-  const dayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const dayName = nowDate.toLocaleDateString("en-US", { weekday: "long" });
 
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -88,7 +89,7 @@ If the user mentions Jumu'ah, Fajr, Dhuhr, Asr, Maghrib, or Isha, set contextTyp
   });
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
+  if (!toolUse) {
     throw new Error("Claude did not return structured output.");
   }
 
@@ -96,7 +97,11 @@ If the user mentions Jumu'ah, Fajr, Dhuhr, Asr, Maghrib, or Isha, set contextTyp
   const contextHint = (input.contextHint as string) ?? null;
 
   const parsed: Omit<ParsedIntent, "contextId"> = {
-    intent: (input.intent as "offer" | "request") ?? "offer",
+    intent: (() => {
+      const v = input.intent as "offer" | "request" | undefined;
+      if (!v) throw new Error("parse_ride_intent: missing required field 'intent'");
+      return v;
+    })(),
     contextType: input.contextType as "masjid" | "event" | "errand" | undefined,
     prayerName: input.prayerName as string | undefined,
     departureLocation: input.departureLocation as string | undefined,
