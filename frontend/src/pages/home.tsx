@@ -3,14 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useMode } from "@/lib/ModeContext";
-import { Calendar, Moon, ShoppingBag, MapPin } from "lucide-react";
+import { Calendar, Moon, ShoppingBag, MapPin, Sparkles, Mic, MicOff, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useListMasjids, useGetMe, useGetMyRequests, useGetMyRides } from "@/lib/api-client";
+import { useListMasjids, useGetMe, useGetMyRequests, useGetMyRides, useListEvents, useListErrands } from "@/lib/api-client";
 import { HomeMap } from "@/components/HomeMap";
 import { MatchBanner } from "@/components/MatchBanner";
 import { PassiveTrackingView } from "@/components/PassiveTrackingView";
 import { RideRatingModal } from "@/components/RideRatingModal";
 import { useRideNotifications, requestNotificationPermission } from "@/lib/useRideNotifications";
+import { parseRideIntent } from "@/lib/parse-ride-intent";
+import { useNLPrefill } from "@/lib/NLPrefillContext";
 
 export default function HomePage() {
   const { mode, setMode } = useMode();
@@ -21,6 +23,93 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
   const [ratingRide, setRatingRide] = useState<any>(null);
   const prevStatusRef = useRef<Record<string, string>>({});
+
+  const { setPrefill } = useNLPrefill();
+  const { data: events = [] } = useListEvents();
+  const { data: errands = [] } = useListErrands();
+
+  const [nlText, setNlText] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [nlError, setNlError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const resolveContext = (
+    contextType: "masjid" | "event" | "errand" | undefined,
+    hint: string | null
+  ): number | undefined => {
+    if (!contextType || !hint) return undefined;
+    const h = hint.toLowerCase();
+    if (contextType === "masjid") {
+      const match = (masjids as any[]).find(
+        (m) => m.name.toLowerCase().includes(h) || h.includes(m.name.toLowerCase())
+      );
+      return match?.id;
+    }
+    if (contextType === "event") {
+      const match = (events as any[]).find(
+        (e) => e.name.toLowerCase().includes(h) || h.includes(e.name.toLowerCase())
+      );
+      return match?.id;
+    }
+    if (contextType === "errand") {
+      const match = (errands as any[]).find(
+        (e) => e.title.toLowerCase().includes(h) || h.includes(e.title.toLowerCase())
+      );
+      return match?.id;
+    }
+    return undefined;
+  };
+
+  const handleNLSubmit = async () => {
+    if (!nlText.trim()) return;
+    setNlLoading(true);
+    setNlError(null);
+    try {
+      const { parsed, contextHint } = await parseRideIntent(nlText.trim());
+      const contextId = resolveContext(parsed.contextType, contextHint);
+      setPrefill({ ...parsed, contextId });
+
+      const params = new URLSearchParams();
+      if (parsed.contextType) params.set("contextType", parsed.contextType);
+      if (contextId) params.set("contextId", String(contextId));
+      if (parsed.prayerName) params.set("prayerName", parsed.prayerName);
+
+      const path = parsed.intent === "offer" ? "/rides/new" : "/requests/new";
+      setLocation(`${path}?${params.toString()}`);
+    } catch {
+      setNlError("Couldn't parse that — try rephrasing.");
+    } finally {
+      setNlLoading(false);
+    }
+  };
+
+  const toggleMic = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setNlError("Speech recognition not supported in this browser.");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const rec = new SpeechRecognition();
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    rec.onresult = (event: any) => {
+      setNlText(event.results[0][0].transcript);
+      setIsListening(false);
+    };
+    rec.onerror = () => setIsListening(false);
+    rec.onend = () => setIsListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  };
 
   const hasPendingRequest = myRequests.some((r: any) => r.status === "pending");
   const hasActiveRide = (myRides?.drivingRides ?? []).some((r: any) => r.status === "scheduled" || r.status === "in_progress");
@@ -83,6 +172,50 @@ export default function HomePage() {
               Driving
             </button>
           </div>
+        </div>
+
+        {/* NL Input Bar */}
+        <div className="flex-shrink-0 space-y-1.5">
+          <div className="flex items-center gap-2 rounded-2xl bg-card ring-1 ring-border/50 px-4 py-3 shadow-sm focus-within:ring-primary/50 transition-shadow">
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <input
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              placeholder={
+                mode === "driving"
+                  ? "e.g. Going to Jumu'ah at ICA, leaving UTA, 3 seats"
+                  : "e.g. Need a ride to the MSA halal dinner Friday"
+              }
+              value={nlText}
+              onChange={(e) => setNlText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleNLSubmit()}
+              disabled={nlLoading}
+            />
+            <button
+              onClick={toggleMic}
+              className={`shrink-0 p-1.5 rounded-xl transition-colors ${
+                isListening
+                  ? "text-red-500 bg-red-500/10"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title={isListening ? "Stop listening" : "Speak"}
+              type="button"
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={handleNLSubmit}
+              disabled={nlLoading || !nlText.trim()}
+              className="shrink-0 p-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              type="button"
+            >
+              {nlLoading ? (
+                <span className="w-4 h-4 block border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <ArrowRight className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+          {nlError && <p className="text-xs text-destructive px-2">{nlError}</p>}
         </div>
 
         {/* Passive tracking — shown when rider has an in-progress ride */}
