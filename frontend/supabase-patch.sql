@@ -73,6 +73,51 @@ on conflict (google_place_id) do update
       jumuah     = excluded.jumuah;
 
 
+-- ─── 5c. UT Austin area masjids ──────────────────────────────────────────────
+-- Seeded by name guard (no google_place_id to avoid matching guesses).
+-- These show on the HomeMap immediately. When a user with GPS clicks one from
+-- Google Places results, the ensureDbId upsert will INSERT it with the real
+-- google_place_id, which is then cached for future lookups.
+
+do $$
+begin
+  if not exists (select 1 from masjids where name = 'Nueces Mosque') then
+    insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah)
+    values ('Nueces Mosque', '1906 Nueces St, Austin, TX 78705',
+      'Oldest masjid in Austin — first mosque in Texas, serving UT students since 1977.',
+      30.2860, -97.7475, '5:22 AM', '1:18 PM', '4:42 PM', '7:58 PM', '9:28 PM', '1:15 PM');
+  end if;
+
+  if not exists (select 1 from masjids where name = 'Islamic Center of Greater Austin') then
+    insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah)
+    values ('Islamic Center of Greater Austin', '8711 Brodie Ln, Austin, TX 78748',
+      'ICGA main campus — South Austin. Daily prayers, Quranic school & community programs.',
+      30.1727, -97.8245, '5:21 AM', '1:17 PM', '4:41 PM', '7:57 PM', '9:27 PM', '1:30 PM');
+  end if;
+
+  if not exists (select 1 from masjids where name = 'Masjid Khadijah') then
+    insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha)
+    values ('Masjid Khadijah', '5110 Manor Rd, Austin, TX 78723',
+      'East Austin Muslim community — open prayers & Friday khutbah.',
+      30.2823, -97.6952, '5:23 AM', '1:19 PM', '4:43 PM', '7:59 PM', '9:29 PM');
+  end if;
+
+  if not exists (select 1 from masjids where name = 'Masjid Al-Noor Austin') then
+    insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah)
+    values ('Masjid Al-Noor Austin', '8521 TX-71 W, Austin, TX 78735',
+      'Southwest Austin — family-centred masjid with weekend school.',
+      30.2201, -97.8695, '5:20 AM', '1:16 PM', '4:40 PM', '7:56 PM', '9:26 PM', '1:00 PM');
+  end if;
+
+  if not exists (select 1 from masjids where name = 'North Austin Muslim Community Center') then
+    insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah)
+    values ('North Austin Muslim Community Center', '12701 N Lamar Blvd, Austin, TX 78753',
+      'North Austin hub serving Round Rock & Cedar Park commuters.',
+      30.4089, -97.6952, '5:24 AM', '1:20 PM', '4:44 PM', '8:00 PM', '9:30 PM', '1:20 PM');
+  end if;
+end $$;
+
+
 -- ─── 6. Demo auth users + profiles for mock rides ────────────────────────────
 -- Fixed UUIDs so re-running is idempotent.
 
@@ -121,35 +166,68 @@ end $$;
 
 
 -- ─── 7. Mock rides ────────────────────────────────────────────────────────────
--- Rides for each masjid, spread across upcoming prayer slots.
 
 do $$
 declare
-  driver1  uuid := 'aaaaaaaa-0001-0001-0001-000000000001';
-  driver2  uuid := 'aaaaaaaa-0002-0002-0002-000000000002';
-  ica_id   int;
-  dee_id   int;
-  tia_id   int;
+  driver1     uuid := 'aaaaaaaa-0001-0001-0001-000000000001';
+  driver2     uuid := 'aaaaaaaa-0002-0002-0002-000000000002';
+  -- Arlington
+  ica_id      int;
+  dee_id      int;
+  tia_id      int;
+  -- Austin
+  nueces_id   int;
+  icga_id     int;
+  khadijah_id int;
 begin
-  select id into ica_id from masjids where name = 'Islamic Center of Arlington' limit 1;
-  select id into dee_id from masjids where name = 'Dar El-Eman Islamic Center'  limit 1;
-  select id into tia_id from masjids where name = 'Tarrant Islamic Association'  limit 1;
+  select id into ica_id      from masjids where name = 'Islamic Center of Arlington'         limit 1;
+  select id into dee_id      from masjids where name = 'Dar El-Eman Islamic Center'          limit 1;
+  select id into tia_id      from masjids where name = 'Tarrant Islamic Association'          limit 1;
+  select id into nueces_id   from masjids where name = 'Nueces Mosque'                        limit 1;
+  select id into icga_id     from masjids where name = 'Islamic Center of Greater Austin'     limit 1;
+  select id into khadijah_id from masjids where name = 'Masjid Khadijah'                      limit 1;
 
-  insert into rides
-    (context_type, masjid_id, prayer_name, driver_id,
-     departure_location, departure_time, seats_total, seats_available, status, notes)
+  -- Arlington rides
+  insert into rides (context_type, masjid_id, prayer_name, driver_id, departure_location, departure_time, seats_total, seats_available, status, notes)
   values
-    -- ICA rides
-    ('masjid', ica_id, 'Isha',    driver1, 'UTA Campus (Parking Lot 9)', now() + interval '5 hours',   4, 3, 'scheduled', 'Leaving from the library side. Text when ready.'),
-    ('masjid', ica_id, 'Fajr',    driver1, 'Vandergriff Park',           now() + interval '14 hours',  3, 2, 'scheduled', 'Punctual departure — please be on time.'),
-    ('masjid', ica_id, 'Jumu''ah',driver2, 'UTA Engineering Lot',        now() + interval '2 days',    4, 4, 'scheduled', 'Jumu''ah carpool, back by 2:30 PM insha''Allah.'),
-    -- Dar El-Eman rides
-    ('masjid', dee_id, 'Maghrib', driver2, 'Collins St & Park Row',      now() + interval '3 hours',   3, 2, 'scheduled', null),
-    ('masjid', dee_id, 'Dhuhr',   driver1, 'UTA Stadium Lot',            now() + interval '1 day',     4, 3, 'scheduled', 'Quick trip — back within the hour.'),
-    -- TIA rides
-    ('masjid', tia_id, 'Isha',    driver2, 'Grand Prairie Transit Center',now() + interval '6 hours',  4, 2, 'scheduled', 'Stopping at Buc-ee''s on the way back.'),
-    ('masjid', tia_id, 'Jumu''ah',driver1, 'UTA Parking Garage South',   now() + interval '3 days',   4, 4, 'scheduled', null)
+    ('masjid', ica_id, 'Isha',    driver1, 'UTA Campus (Parking Lot 9)',     now() + interval '5 hours',   4, 3, 'scheduled', 'Leaving from the library side. Text when ready.'),
+    ('masjid', ica_id, 'Fajr',    driver1, 'Vandergriff Park',               now() + interval '14 hours',  3, 2, 'scheduled', 'Punctual departure — please be on time.'),
+    ('masjid', ica_id, 'Dhuhr',   driver2, 'UTA Student Union parking',      now() + interval '1 day',     4, 3, 'scheduled', 'Quick lunch-hour run — back by 2 PM.'),
+    ('masjid', ica_id, 'Jumu''ah',driver2, 'UTA Engineering Lot',            now() + interval '2 days',    4, 4, 'scheduled', 'Jumu''ah carpool, back by 2:30 PM insha''Allah.'),
+    ('masjid', dee_id, 'Maghrib', driver2, 'Collins St & Park Row',          now() + interval '3 hours',   3, 2, 'scheduled', null),
+    ('masjid', dee_id, 'Dhuhr',   driver1, 'UTA Stadium Lot',                now() + interval '1 day',     4, 3, 'scheduled', 'Quick trip — back within the hour.'),
+    ('masjid', tia_id, 'Isha',    driver2, 'Grand Prairie Transit Center',   now() + interval '6 hours',   4, 2, 'scheduled', 'Stopping at Buc-ee''s on the way back.'),
+    ('masjid', tia_id, 'Jumu''ah',driver1, 'UTA Parking Garage South',       now() + interval '3 days',    4, 4, 'scheduled', null)
   on conflict do nothing;
+
+  -- Austin rides (only if Austin masjids exist)
+  if nueces_id is not null then
+    insert into rides (context_type, masjid_id, prayer_name, driver_id, departure_location, departure_time, seats_total, seats_available, status, notes)
+    values
+      ('masjid', nueces_id, 'Isha',    driver1, 'UT West Mall (near PCL)',     now() + interval '5 hours',   4, 3, 'scheduled', 'Meet at the turtle pond steps.'),
+      ('masjid', nueces_id, 'Fajr',    driver2, 'Jester Dormitory Loop',       now() + interval '13 hours',  3, 2, 'scheduled', 'Fajr carpool — very punctual departure.'),
+      ('masjid', nueces_id, 'Dhuhr',   driver1, 'UT Gregory Gym parking',      now() + interval '1 day',     4, 4, 'scheduled', null),
+      ('masjid', nueces_id, 'Jumu''ah',driver2, 'Speedway & 21st St',          now() + interval '2 days',    4, 3, 'scheduled', 'Back by 2 PM insha''Allah.')
+    on conflict do nothing;
+  end if;
+
+  if icga_id is not null then
+    insert into rides (context_type, masjid_id, prayer_name, driver_id, departure_location, departure_time, seats_total, seats_available, status, notes)
+    values
+      ('masjid', icga_id, 'Maghrib',  driver1, 'South Congress & Oltorf',     now() + interval '3 hours',   3, 2, 'scheduled', null),
+      ('masjid', icga_id, 'Isha',     driver2, 'Slaughter Ln Park & Ride',    now() + interval '6 hours',   4, 3, 'scheduled', 'Stopping for gas on the way back.'),
+      ('masjid', icga_id, 'Dhuhr',    driver1, 'UT Campus (San Jacinto Blvd)',now() + interval '1 day',     4, 4, 'scheduled', null),
+      ('masjid', icga_id, 'Jumu''ah', driver1, 'UT Campus (San Jacinto Blvd)',now() + interval '3 days',    4, 4, 'scheduled', 'Jumu''ah + Costco run after — bring your list.')
+    on conflict do nothing;
+  end if;
+
+  if khadijah_id is not null then
+    insert into rides (context_type, masjid_id, prayer_name, driver_id, departure_location, departure_time, seats_total, seats_available, status, notes)
+    values
+      ('masjid', khadijah_id, 'Isha',  driver2, 'Mueller HEB parking lot',    now() + interval '5 hours',   3, 2, 'scheduled', null),
+      ('masjid', khadijah_id, 'Dhuhr', driver1, 'UT Red River parking deck',  now() + interval '1 day',     4, 3, 'scheduled', 'Back in time for afternoon classes.')
+    on conflict do nothing;
+  end if;
 
 end $$;
 
@@ -192,7 +270,7 @@ end $$;
 
 -- ─── Done ─────────────────────────────────────────────────────────────────────
 -- To verify:
---   select count(*) from masjids;          -- should be >= 6
+--   select count(*) from masjids;          -- should be >= 11 (6 DFW + 5 Austin)
 --   select count(*) from rides;            -- should be >= 7
 --   select count(*) from ride_requests;    -- should be >= 3
 --   select column_name from information_schema.columns
