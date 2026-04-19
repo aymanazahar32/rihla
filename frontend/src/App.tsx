@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGetMe } from "@/lib/api-client";
+import { useMatchingEngine } from "@/lib/useMatchingEngine";
 import { useLocation } from "wouter";
 import { useEffect, type ReactNode } from "react";
 import { Layout } from "@/components/Layout";
@@ -129,11 +130,18 @@ function Router() {
   );
 }
 
+function MatchingEngineMount() {
+  const { data: me } = useGetMe();
+  useMatchingEngine(!!me);
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ModeProvider>
+          <MatchingEngineMount />
           <Router />
           <Toaster />
         </ModeProvider>

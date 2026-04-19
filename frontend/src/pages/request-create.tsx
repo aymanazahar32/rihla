@@ -24,6 +24,8 @@ export default function RequestCreatePage() {
   const prayerName = params.get("prayerName") || undefined;
 
   const [pickupLocation, setPickupLocation] = useState("");
+  const [pickupLat, setPickupLat] = useState<number | null>(null);
+  const [pickupLng, setPickupLng] = useState<number | null>(null);
   const [desiredTime, setDesiredTime] = useState("");
   const [notes, setNotes] = useState("");
   const prefilledPrayerTime = useRef(false);
@@ -51,7 +53,7 @@ export default function RequestCreatePage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createReq.mutate(
-      { data: { contextType, contextId, ...(prayerName ? { prayerName } : {}), pickupLocation, desiredTime: new Date(desiredTime).toISOString(), notes } },
+      { data: { contextType, contextId, ...(prayerName ? { prayerName } : {}), pickupLocation, pickupLat, pickupLng, desiredTime: new Date(desiredTime).toISOString(), notes } },
       {
         onSuccess: () => {
           toast({ title: "Request posted!", description: "Drivers will see your request." });
@@ -76,7 +78,14 @@ export default function RequestCreatePage() {
             <form onSubmit={onSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label>Pickup location</Label>
-                <MapPicker value={pickupLocation} onChange={(addr) => setPickupLocation(addr)} />
+                <MapPicker
+                  value={pickupLocation}
+                  onChange={(addr, lat, lng) => {
+                    setPickupLocation(addr);
+                    setPickupLat(lat);
+                    setPickupLng(lng);
+                  }}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Desired pickup time</Label>
