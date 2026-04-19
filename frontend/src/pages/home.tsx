@@ -34,6 +34,12 @@ export default function HomePage() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
   const resolveContext = (
     contextType: "masjid" | "event" | "errand" | undefined,
     hint: string | null
@@ -62,6 +68,8 @@ export default function HomePage() {
   };
 
   const handleNLSubmit = async () => {
+    recognitionRef.current?.abort();
+    setIsListening(false);
     if (!nlText.trim()) return;
     setNlLoading(true);
     setNlError(null);
@@ -77,7 +85,8 @@ export default function HomePage() {
 
       const path = parsed.intent === "offer" ? "/rides/new" : "/requests/new";
       setLocation(`${path}?${params.toString()}`);
-    } catch {
+    } catch (err) {
+      console.error("[parseRideIntent]", err);
       setNlError("Couldn't parse that — try rephrasing.");
     } finally {
       setNlLoading(false);
@@ -186,13 +195,14 @@ export default function HomePage() {
                   : "e.g. Need a ride to the MSA halal dinner Friday"
               }
               value={nlText}
-              onChange={(e) => setNlText(e.target.value)}
+              onChange={(e) => { setNlText(e.target.value); if (nlError) setNlError(null); }}
               onKeyDown={(e) => e.key === "Enter" && handleNLSubmit()}
               disabled={nlLoading}
             />
             <button
               onClick={toggleMic}
-              className={`shrink-0 p-1.5 rounded-xl transition-colors ${
+              disabled={nlLoading}
+              className={`shrink-0 p-1.5 rounded-xl transition-colors disabled:opacity-40 ${
                 isListening
                   ? "text-red-500 bg-red-500/10"
                   : "text-muted-foreground hover:text-foreground"
