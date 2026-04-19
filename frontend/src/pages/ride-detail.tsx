@@ -97,7 +97,7 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
           {!genderBlocked && (
             <div>
               <h2 className="text-lg font-semibold mb-3">Logistics & live tracking</h2>
-              <LiveMap rideId={ride.id} height="380px" />
+              <LiveMap rideId={ride.id} height="380px" isDriver={isDriver} />
             </div>
           )}
         </div>
@@ -170,13 +170,13 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
               {isDriver ? (
                 <>
                   {ride.status === "scheduled" && (
-                    <Button className="w-full rounded-full" onClick={() => start.mutate({ rideId }, { onSuccess: () => { refresh(); toast({ title: "Ride started" }); } })}>
+                    <Button className="w-full rounded-full" onClick={() => start.mutate({ rideId }, { onSuccess: () => setLocation(`/rides/${rideId}/drive`) })}>
                       <Play className="w-4 h-4 mr-2" /> Start ride
                     </Button>
                   )}
-                  {ride.status === "in_progress" && (
-                    <Button className="w-full rounded-full" onClick={() => complete.mutate({ rideId }, { onSuccess: () => { refresh(); toast({ title: "Ride completed" }); } })}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Complete ride
+                  {ride.status === "in_progress" && isDriver && (
+                    <Button variant="outline" className="w-full rounded-full" onClick={() => setLocation(`/rides/${rideId}/drive`)}>
+                      <Play className="w-4 h-4 mr-2" /> Return to driver mode
                     </Button>
                   )}
                   <Button variant="destructive" className="w-full rounded-full" onClick={() => del.mutate({ rideId }, { onSuccess: () => { toast({ title: "Ride deleted" }); setLocation("/my-rides"); } })}>

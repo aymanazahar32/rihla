@@ -22,6 +22,7 @@ import ErrandsPage from "@/pages/errands";
 import ErrandDetailPage from "@/pages/errand-detail";
 import RideCreatePage from "@/pages/ride-create";
 import RideDetailPage from "@/pages/ride-detail";
+import DriverModePage from "@/pages/driver-mode";
 import RequestCreatePage from "@/pages/request-create";
 import MyRidesPage from "@/pages/my-rides";
 
@@ -99,6 +100,15 @@ function Router() {
       <Route path="/salah/:masjidId">{(p) => <MasjidDetailPage masjidId={parseInt(p.masjidId)} />}</Route>
       <Route path="/errands" component={ErrandsPage} />
       <Route path="/errands/:errandId">{(p) => <ErrandDetailPage errandId={parseInt(p.errandId)} />}</Route>
+      <Route path="/rides/:rideId/drive">
+        {(p) => (
+          <SessionGuard>
+            <CompleteProfileGuard>
+              <DriverModePage rideId={parseInt(p.rideId)} />
+            </CompleteProfileGuard>
+          </SessionGuard>
+        )}
+      </Route>
       <Route path="/rides/:rideId">{(p) => <RideDetailPage rideId={parseInt(p.rideId)} />}</Route>
 
       <Route path="/events/new">
