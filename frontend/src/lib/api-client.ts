@@ -71,19 +71,21 @@ function normalizeRide(r: any) {
   };
 }
 
-function normalizeMasjid(m: any) {
+function normalizeMasjid(masjid: any) {
   return {
-    id: m.id,
-    name: m.name,
-    address: m.address,
-    description: m.description,
-    imageUrl: m.image_url,
-    fajr: m.fajr,
-    dhuhr: m.dhuhr,
-    asr: m.asr,
-    maghrib: m.maghrib,
-    isha: m.isha,
-    jumuah: m.jumuah,
+    id: masjid.id,
+    name: masjid.name,
+    address: masjid.address,
+    description: masjid.description,
+    imageUrl: masjid.image_url,
+    lat: masjid.lat,
+    lng: masjid.lng,
+    fajr: masjid.fajr,
+    dhuhr: masjid.dhuhr,
+    asr: masjid.asr,
+    maghrib: masjid.maghrib,
+    isha: masjid.isha,
+    jumuah: masjid.jumuah,
   };
 }
 
@@ -471,6 +473,29 @@ export const useGetMasjid = (id: number, options?: { query?: Record<string, unkn
       return normalizeMasjid(data);
     },
     ...options?.query,
+  });
+
+export const useMasjidCarpoolCounts = () =>
+  useQuery({
+    queryKey: ["/masjids/counts"],
+    queryFn: async () => {
+      const [{ data: rides }, { data: requests }] = await Promise.all([
+        supabase.from("rides").select("masjid_id").eq("context_type", "masjid").eq("status", "scheduled").gt("seats_available", 0),
+        supabase.from("ride_requests").select("masjid_id").eq("context_type", "masjid")
+      ]);
+      const counts: Record<number, { rides: number; requests: number }> = {};
+      rides?.forEach(r => {
+        if (!r.masjid_id) return;
+        if (!counts[r.masjid_id]) counts[r.masjid_id] = { rides: 0, requests: 0 };
+        counts[r.masjid_id].rides++;
+      });
+      requests?.forEach(r => {
+        if (!r.masjid_id) return;
+        if (!counts[r.masjid_id]) counts[r.masjid_id] = { rides: 0, requests: 0 };
+        counts[r.masjid_id].requests++;
+      });
+      return counts;
+    },
   });
 
 // ── Errands ───────────────────────────────────────────────────────────────────

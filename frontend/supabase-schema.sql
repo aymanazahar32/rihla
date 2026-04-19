@@ -64,6 +64,8 @@ create table if not exists masjids (
   address     text not null,
   description text,
   image_url   text,
+  lat         double precision,
+  lng         double precision,
   fajr        text,
   dhuhr       text,
   asr         text,
@@ -264,10 +266,10 @@ insert into events (name, location, date_time, category, description) values
   ('Charity Basketball Night', 'UTA Maverick Activities Center', now() + interval '12 days', 'Sports', 'Fundraiser games — cheer or play!')
 on conflict do nothing;
 
-insert into masjids (name, address, description, fajr, dhuhr, asr, maghrib, isha, jumuah) values
-  ('Islamic Center of Arlington', '5000 Tarrant Rd, Arlington, TX 76016', 'Central masjid for Arlington & UTA students — salah rides hub.', '5:30 AM', '1:20 PM', '4:45 PM', '8:00 PM', '9:30 PM', '1:15 PM'),
-  ('Dar El-Eman Islamic Center', '1200 E Abram St, Arlington, TX 76010', 'Community masjid near downtown Arlington.', '5:35 AM', '1:25 PM', '4:50 PM', '8:05 PM', '9:35 PM', '1:30 PM'),
-  ('Tarrant Islamic Association', '8911 S Collins St, Arlington, TX 76001', 'South Arlington — family programs & Friday prayer.', '5:25 AM', '1:15 PM', '4:40 PM', '7:55 PM', '9:25 PM', '1:00 PM')
+insert into masjids (name, address, description, lat, lng, fajr, dhuhr, asr, maghrib, isha, jumuah) values
+  ('Islamic Center of Arlington', '5000 Tarrant Rd, Arlington, TX 76016', 'Central masjid for Arlington & UTA students — salah rides hub.', 32.6953, -97.1681, '5:30 AM', '1:20 PM', '4:45 PM', '8:00 PM', '9:30 PM', '1:15 PM'),
+  ('Dar El-Eman Islamic Center', '1200 E Abram St, Arlington, TX 76010', 'Community masjid near downtown Arlington.', 32.7357, -97.0945, '5:35 AM', '1:25 PM', '4:50 PM', '8:05 PM', '9:35 PM', '1:30 PM'),
+  ('Tarrant Islamic Association', '8911 S Collins St, Arlington, TX 76001', 'South Arlington — family programs & Friday prayer.', 32.6288, -97.0886, '5:25 AM', '1:15 PM', '4:40 PM', '7:55 PM', '9:25 PM', '1:00 PM')
 on conflict do nothing;
 
 insert into errands (title, description, category, location, scheduled_time) values

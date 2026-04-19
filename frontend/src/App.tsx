@@ -6,6 +6,7 @@ import { useGetMe } from "@/lib/api-client";
 import { useLocation } from "wouter";
 import { useEffect, type ReactNode } from "react";
 import { Layout } from "@/components/Layout";
+import { ModeProvider } from "@/lib/ModeContext";
 
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -122,8 +123,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
-        <Toaster />
+        <ModeProvider>
+          <Router />
+          <Toaster />
+        </ModeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
