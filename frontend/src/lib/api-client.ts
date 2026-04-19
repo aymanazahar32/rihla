@@ -1,115 +1,122 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 async function getCurrentUserId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
   return user.id;
 }
 
-function normalizeEvent(e: any) {
+function normalizeEvent(event: any) {
   return {
-    id: e.id,
-    name: e.name,
-    location: e.location,
-    dateTime: e.date_time,
-    category: e.category,
-    description: e.description,
-    imageUrl: e.image_url,
+    id: event.id,
+    name: event.name,
+    location: event.location,
+    dateTime: event.date_time,
+    category: event.category,
+    description: event.description,
+    imageUrl: event.image_url,
   };
 }
 
-function normalizeRide(r: any) {
+function normalizeRide(ride: any) {
   return {
-    id: r.id,
-    eventId: r.event_id,
-    masjidId: r.masjid_id,
-    errandId: r.errand_id,
-    contextType: r.context_type,
-    prayerName: r.prayer_name,
-    driverId: r.driver_id,
-    departureLocation: r.departure_location,
-    departureTime: r.departure_time,
-    seatsTotal: r.seats_total,
-    seatsAvailable: r.seats_available,
-    notes: r.notes,
-    incentiveLabel: r.incentive_label,
-    status: r.status ?? "scheduled",
-    currentLat: r.current_lat,
-    currentLng: r.current_lng,
-    destinationLat: r.destination_lat,
-    destinationLng: r.destination_lng,
-    etaMinutes: r.eta_minutes,
-    progressPercent: r.progress_percent,
-    createdAt: r.created_at,
-    driver: r.driver
+    id: ride.id,
+    eventId: ride.event_id,
+    masjidId: ride.masjid_id,
+    errandId: ride.errand_id,
+    contextType: ride.context_type,
+    prayerName: ride.prayer_name,
+    driverId: ride.driver_id,
+    departureLocation: ride.departure_location,
+    departureTime: ride.departure_time,
+    seatsTotal: ride.seats_total,
+    seatsAvailable: ride.seats_available,
+    notes: ride.notes,
+    incentiveLabel: ride.incentive_label,
+    status: ride.status ?? "scheduled",
+    currentLat: ride.current_lat,
+    currentLng: ride.current_lng,
+    destinationLat: ride.destination_lat,
+    destinationLng: ride.destination_lng,
+    etaMinutes: ride.eta_minutes,
+    progressPercent: ride.progress_percent,
+    createdAt: ride.created_at,
+    driver: ride.driver
       ? {
-          id: r.driver.id,
-          name: r.driver.name,
-          idVerified: r.driver.id_verified,
-          carMake: r.driver.car_make,
-          carModel: r.driver.car_model,
-          carColor: r.driver.car_color,
-          createdAt: r.driver.created_at,
+          id: ride.driver.id,
+          name: ride.driver.name,
+          idVerified: ride.driver.id_verified,
+          carMake: ride.driver.car_make,
+          carModel: ride.driver.car_model,
+          carColor: ride.driver.car_color,
+          createdAt: ride.driver.created_at,
         }
       : undefined,
-    event: r.event
-      ? { id: r.event.id, name: r.event.name, location: r.event.location, dateTime: r.event.date_time }
+    event: ride.event
+      ? {
+          id: ride.event.id,
+          name: ride.event.name,
+          location: ride.event.location,
+          dateTime: ride.event.date_time,
+        }
       : undefined,
-    masjid: r.masjid ? { id: r.masjid.id, name: r.masjid.name } : undefined,
-    errand: r.errand ? { id: r.errand.id, title: r.errand.title } : undefined,
-    passengers: (r.ride_participants ?? []).map((p: any) => ({
-      id: p.profiles.id,
-      name: p.profiles.name,
-      idVerified: p.profiles.id_verified,
+    masjid: ride.masjid ? { id: ride.masjid.id, name: ride.masjid.name } : undefined,
+    errand: ride.errand ? { id: ride.errand.id, title: ride.errand.title } : undefined,
+    passengers: (ride.ride_participants ?? []).map((participant: any) => ({
+      id: participant.profiles.id,
+      name: participant.profiles.name,
+      idVerified: participant.profiles.id_verified,
     })),
   };
 }
 
-function normalizeMasjid(m: any) {
+function normalizeMasjid(masjid: any) {
   return {
-    id: m.id,
-    name: m.name,
-    address: m.address,
-    description: m.description,
-    imageUrl: m.image_url,
-    fajr: m.fajr,
-    dhuhr: m.dhuhr,
-    asr: m.asr,
-    maghrib: m.maghrib,
-    isha: m.isha,
-    jumuah: m.jumuah,
+    id: masjid.id,
+    name: masjid.name,
+    address: masjid.address,
+    description: masjid.description,
+    imageUrl: masjid.image_url,
+    fajr: masjid.fajr,
+    dhuhr: masjid.dhuhr,
+    asr: masjid.asr,
+    maghrib: masjid.maghrib,
+    isha: masjid.isha,
+    jumuah: masjid.jumuah,
   };
 }
 
-function normalizeErrand(e: any) {
+function normalizeErrand(errand: any) {
   return {
-    id: e.id,
-    title: e.title,
-    description: e.description,
-    category: e.category,
-    location: e.location,
-    scheduledTime: e.scheduled_time,
+    id: errand.id,
+    title: errand.title,
+    description: errand.description,
+    category: errand.category,
+    location: errand.location,
+    scheduledTime: errand.scheduled_time,
   };
 }
 
-function normalizeRideRequest(rr: any) {
+function normalizeRideRequest(rideRequest: any) {
   return {
-    id: rr.id,
-    contextType: rr.context_type,
-    prayerName: rr.prayer_name,
-    pickupLocation: rr.pickup_location,
-    desiredTime: rr.desired_time,
-    notes: rr.notes,
-    requester: rr.requester
-      ? { id: rr.requester.id, name: rr.requester.name, idVerified: rr.requester.id_verified }
+    id: rideRequest.id,
+    contextType: rideRequest.context_type,
+    prayerName: rideRequest.prayer_name,
+    pickupLocation: rideRequest.pickup_location,
+    desiredTime: rideRequest.desired_time,
+    notes: rideRequest.notes,
+    requester: rideRequest.requester
+      ? {
+          id: rideRequest.requester.id,
+          name: rideRequest.requester.name,
+          idVerified: rideRequest.requester.id_verified,
+        }
       : undefined,
   };
 }
-
-// ── Query keys ────────────────────────────────────────────────────────────────
 
 export const getGetMeQueryKey = () => ["/auth/me"] as const;
 export const getGetEventQueryKey = (id: number) => ["/events", id] as const;
@@ -119,13 +126,14 @@ export const getGetRideQueryKey = (id: number) => ["/rides", id] as const;
 export const getGetMyRidesQueryKey = () => ["/rides/my"] as const;
 export const getGetRideLocationQueryKey = (id: number) => ["/rides", id, "location"] as const;
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
 export const useGetMe = () =>
   useQuery({
     queryKey: getGetMeQueryKey(),
     queryFn: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
       if (error || !user) throw error ?? new Error("Not authenticated");
 
       const { data: profile } = await supabase
@@ -189,22 +197,25 @@ export const useRegister = () =>
   });
 
 export const useLogout = () =>
-  useMutation({ mutationFn: () => supabase.auth.signOut() });
-
-// ── Profile setup ─────────────────────────────────────────────────────────────
+  useMutation({
+    mutationFn: () => supabase.auth.signOut(),
+  });
 
 export const useSetupRiderProfile = () =>
   useMutation({
     mutationFn: async (vars: { data: { gender: string; age: number; university: string; studentIdNumber: string } }) => {
       const userId = await getCurrentUserId();
-      const d = vars.data;
-      const { error } = await supabase.from("profiles").update({
-        user_type: "rider",
-        gender: d.gender,
-        age: d.age,
-        university: d.university,
-        student_id_number: d.studentIdNumber,
-      }).eq("id", userId);
+      const data = vars.data;
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          user_type: "rider",
+          gender: data.gender,
+          age: data.age,
+          university: data.university,
+          student_id_number: data.studentIdNumber,
+        })
+        .eq("id", userId);
       if (error) throw { error: error.message };
     },
   });
@@ -213,20 +224,23 @@ export const useSetupDriverProfile = () =>
   useMutation({
     mutationFn: async (vars: { data: { gender: string; age: number; university: string; studentIdNumber: string; licensePlate: string; vinNumber: string; driversLicenseNumber: string; carMake: string; carModel: string; carColor: string } }) => {
       const userId = await getCurrentUserId();
-      const d = vars.data;
-      const { error } = await supabase.from("profiles").update({
-        user_type: "driver",
-        gender: d.gender,
-        age: d.age,
-        university: d.university,
-        student_id_number: d.studentIdNumber,
-        license_plate: d.licensePlate,
-        vin_number: d.vinNumber,
-        drivers_license_number: d.driversLicenseNumber,
-        car_make: d.carMake,
-        car_model: d.carModel,
-        car_color: d.carColor,
-      }).eq("id", userId);
+      const data = vars.data;
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          user_type: "driver",
+          gender: data.gender,
+          age: data.age,
+          university: data.university,
+          student_id_number: data.studentIdNumber,
+          license_plate: data.licensePlate,
+          vin_number: data.vinNumber,
+          drivers_license_number: data.driversLicenseNumber,
+          car_make: data.carMake,
+          car_model: data.carModel,
+          car_color: data.carColor,
+        })
+        .eq("id", userId);
       if (error) throw { error: error.message };
     },
   });
@@ -235,11 +249,14 @@ export const useSetupOrgProfile = () =>
   useMutation({
     mutationFn: async (vars: { data: { organizationName: string } }) => {
       const userId = await getCurrentUserId();
-      const { error } = await supabase.from("profiles").update({
-        user_type: "organization",
-        organization_name: vars.data.organizationName,
-        profile_completed: true,
-      }).eq("id", userId);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          user_type: "organization",
+          organization_name: vars.data.organizationName,
+          profile_completed: true,
+        })
+        .eq("id", userId);
       if (error) throw { error: error.message };
     },
   });
@@ -257,10 +274,13 @@ export const useRunDriverCheck = () =>
   useMutation({
     mutationFn: async () => {
       const userId = await getCurrentUserId();
-      const { error } = await supabase.from("profiles").update({
-        driver_history_checked: true,
-        profile_completed: true,
-      }).eq("id", userId);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          driver_history_checked: true,
+          profile_completed: true,
+        })
+        .eq("id", userId);
       if (error) throw { error: error.message };
     },
   });
@@ -274,16 +294,11 @@ export const useCompleteProfile = () =>
     },
   });
 
-// ── Events ────────────────────────────────────────────────────────────────────
-
 export const useListEvents = () =>
   useQuery({
     queryKey: ["/events"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .order("date_time", { ascending: true });
+      const { data, error } = await supabase.from("events").select("*").order("date_time", { ascending: true });
       if (error) throw error;
       return data.map(normalizeEvent);
     },
@@ -310,15 +325,13 @@ export const useGetEventSummary = (id: number, options?: { query?: Record<string
         .eq("event_id", id);
       if (error) throw error;
       const totalRides = rides.length;
-      const availableSeats = rides.reduce((sum, r) => sum + r.seats_available, 0);
-      const ridesWithSpace = rides.filter((r) => r.seats_available > 0).length;
-      const totalPassengers = rides.reduce((sum, r) => sum + (r.seats_total - r.seats_available), 0);
+      const availableSeats = rides.reduce((sum, ride) => sum + ride.seats_available, 0);
+      const ridesWithSpace = rides.filter((ride) => ride.seats_available > 0).length;
+      const totalPassengers = rides.reduce((sum, ride) => sum + (ride.seats_total - ride.seats_available), 0);
       return { totalRides, availableSeats, ridesWithSpace, totalPassengers };
     },
     ...options?.query,
   });
-
-// ── Masjids ───────────────────────────────────────────────────────────────────
 
 export const useListMasjids = () =>
   useQuery({
@@ -340,8 +353,6 @@ export const useGetMasjid = (id: number, options?: { query?: Record<string, unkn
     },
     ...options?.query,
   });
-
-// ── Errands ───────────────────────────────────────────────────────────────────
 
 export const useListErrands = (params?: { category?: string; search?: string }) =>
   useQuery({
@@ -366,8 +377,6 @@ export const useGetErrand = (id: number, options?: { query?: Record<string, unkn
     },
     ...options?.query,
   });
-
-// ── Rides ─────────────────────────────────────────────────────────────────────
 
 const RIDE_SELECT = `
   *,
@@ -440,31 +449,32 @@ export const useGetRideLocation = (id: number, options?: { query?: Record<string
 
 export const useCreateRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { data: Record<string, unknown> }) => {
       const userId = await getCurrentUserId();
-      const d = vars.data as any;
-      const { data, error } = await supabase
+      const data = vars.data as any;
+      const { data: createdRide, error } = await supabase
         .from("rides")
         .insert({
-          context_type: d.contextType,
-          event_id: d.contextType === "event" ? d.contextId : null,
-          masjid_id: d.contextType === "masjid" ? d.contextId : null,
-          errand_id: d.contextType === "errand" ? d.contextId : null,
-          prayer_name: d.prayerName || null,
+          context_type: data.contextType,
+          event_id: data.contextType === "event" ? data.contextId : null,
+          masjid_id: data.contextType === "masjid" ? data.contextId : null,
+          errand_id: data.contextType === "errand" ? data.contextId : null,
+          prayer_name: data.prayerName || null,
           driver_id: userId,
-          departure_location: d.departureLocation,
-          departure_time: d.departureTime,
-          seats_total: d.seatsTotal,
-          seats_available: d.seatsTotal,
-          notes: d.notes || null,
-          incentive_label: d.incentiveLabel || null,
+          departure_location: data.departureLocation,
+          departure_time: data.departureTime,
+          seats_total: data.seatsTotal,
+          seats_available: data.seatsTotal,
+          notes: data.notes || null,
+          incentive_label: data.incentiveLabel || null,
           status: "scheduled",
         })
         .select()
         .single();
       if (error) throw { error: error.message };
-      return { id: data.id };
+      return { id: createdRide.id };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/rides"] }),
   });
@@ -472,22 +482,22 @@ export const useCreateRide = () => {
 
 export const useJoinRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
       const userId = await getCurrentUserId();
-      const { error: joinError } = await supabase
-        .from("ride_participants")
-        .insert({ ride_id: vars.rideId, user_id: userId });
+      const { error: joinError } = await supabase.from("ride_participants").insert({ ride_id: vars.rideId, user_id: userId });
       if (joinError) throw { error: joinError.message };
       const { error: seatError } = await supabase.rpc("decrement_seat", { ride_id: vars.rideId });
       if (seatError) throw { error: seatError.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
   });
 };
 
 export const useLeaveRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
       const userId = await getCurrentUserId();
@@ -500,12 +510,13 @@ export const useLeaveRide = () => {
       const { error: seatError } = await supabase.rpc("increment_seat", { ride_id: vars.rideId });
       if (seatError) throw { error: seatError.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
   });
 };
 
 export const useDeleteRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
       const { error } = await supabase.from("rides").delete().eq("id", vars.rideId);
@@ -517,23 +528,28 @@ export const useDeleteRide = () => {
 
 export const useStartRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
       const { error } = await supabase.from("rides").update({ status: "in_progress" }).eq("id", vars.rideId);
       if (error) throw { error: error.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
   });
 };
 
 export const useCompleteRide = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
-      const { error } = await supabase.from("rides").update({ status: "completed", progress_percent: 100 }).eq("id", vars.rideId);
+      const { error } = await supabase
+        .from("rides")
+        .update({ status: "completed", progress_percent: 100 })
+        .eq("id", vars.rideId);
       if (error) throw { error: error.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
   });
 };
 
@@ -543,26 +559,17 @@ export const useGetMyRides = () =>
     queryFn: async () => {
       const userId = await getCurrentUserId();
       const [drivingRes, participantRes] = await Promise.all([
-        supabase
-          .from("rides")
-          .select(RIDE_SELECT)
-          .eq("driver_id", userId)
-          .order("departure_time", { ascending: true }),
-        supabase
-          .from("ride_participants")
-          .select(`ride:rides(${RIDE_SELECT})`)
-          .eq("user_id", userId),
+        supabase.from("rides").select(RIDE_SELECT).eq("driver_id", userId).order("departure_time", { ascending: true }),
+        supabase.from("ride_participants").select(`ride:rides(${RIDE_SELECT})`).eq("user_id", userId),
       ]);
       if (drivingRes.error) throw drivingRes.error;
       if (participantRes.error) throw participantRes.error;
       return {
         drivingRides: drivingRes.data.map(normalizeRide),
-        passengerRides: participantRes.data.map((p: any) => p.ride).filter(Boolean).map(normalizeRide),
+        passengerRides: participantRes.data.map((participant: any) => participant.ride).filter(Boolean).map(normalizeRide),
       };
     },
   });
-
-// ── Ride requests ─────────────────────────────────────────────────────────────
 
 export const useListRideRequests = (
   params: { contextType?: string; contextId?: number; prayerName?: string },
@@ -593,20 +600,21 @@ export const useListRideRequests = (
 
 export const useCreateRideRequest = () => {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (vars: { data: Record<string, unknown> }) => {
       const userId = await getCurrentUserId();
-      const d = vars.data as any;
+      const data = vars.data as any;
       const { error } = await supabase.from("ride_requests").insert({
-        context_type: d.contextType,
-        event_id: d.contextType === "event" ? d.contextId : null,
-        masjid_id: d.contextType === "masjid" ? d.contextId : null,
-        errand_id: d.contextType === "errand" ? d.contextId : null,
-        prayer_name: d.prayerName || null,
+        context_type: data.contextType,
+        event_id: data.contextType === "event" ? data.contextId : null,
+        masjid_id: data.contextType === "masjid" ? data.contextId : null,
+        errand_id: data.contextType === "errand" ? data.contextId : null,
+        prayer_name: data.prayerName || null,
         requester_id: userId,
-        pickup_location: d.pickupLocation,
-        desired_time: d.desiredTime,
-        notes: d.notes || null,
+        pickup_location: data.pickupLocation,
+        desired_time: data.desiredTime,
+        notes: data.notes || null,
       });
       if (error) throw { error: error.message };
     },
