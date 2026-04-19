@@ -38,7 +38,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (me) requestNotificationPermission();
-  }, [!!me]);
+  }, [me]);
 
   useRideNotifications({
     userId: me?.id,
