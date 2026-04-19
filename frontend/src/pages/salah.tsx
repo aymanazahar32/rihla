@@ -1,196 +1,193 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { useNearbyMasjids, useMasjidCarpoolCounts, useAladhanTimings, useUpsertMasjid } from "@/lib/api-client";
+import { useListMasjids, useMasjidCarpoolCounts, useAladhanTimings } from "@/lib/api-client";
 import { useMode } from "@/lib/ModeContext";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Moon, MapPin, ArrowRight, Sun, Sunset, Sunrise, CarFront, HandHelping, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  MapPin, ArrowRight, CarFront, HandHelping,
+  Moon, Sun, Sunset, Sunrise, Star
+} from "lucide-react";
 
-// Simple distance calculation (in miles approx)
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 3959; // Earth's radius in miles
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const PRAYERS = [
-  { key: "fajr", label: "Fajr", icon: Moon, color: "bg-blue-100 text-blue-700" },
-  { key: "dhuhr", label: "Dhuhr", icon: Sun, color: "bg-amber-100 text-amber-700" },
-  { key: "asr", label: "Asr", icon: Sun, color: "bg-orange-100 text-orange-700" },
-  { key: "maghrib", label: "Maghrib", icon: Sunset, color: "bg-red-100 text-red-700" },
-  { key: "isha", label: "Isha", icon: Moon, color: "bg-indigo-100 text-indigo-700" },
+  { key: "fajr",    label: "Fajr",    timingKey: "Fajr",    Icon: Moon,    bg: "bg-indigo-100", text: "text-indigo-700",  dot: "bg-indigo-400" },
+  { key: "dhuhr",   label: "Dhuhr",   timingKey: "Dhuhr",   Icon: Sun,     bg: "bg-amber-100",  text: "text-amber-700",   dot: "bg-amber-400" },
+  { key: "asr",     label: "Asr",     timingKey: "Asr",     Icon: Sunrise, bg: "bg-orange-100", text: "text-orange-700",  dot: "bg-orange-400" },
+  { key: "maghrib", label: "Maghrib", timingKey: "Maghrib", Icon: Sunset,  bg: "bg-rose-100",   text: "text-rose-700",    dot: "bg-rose-400" },
+  { key: "isha",    label: "Isha",    timingKey: "Isha",    Icon: Star,    bg: "bg-violet-100", text: "text-violet-700",  dot: "bg-violet-400" },
 ];
 
 export default function SalahPage() {
   const { mode } = useMode();
   const [, setLocationPath] = useLocation();
-  const upsertMasjid = useUpsertMasjid();
-  const [upsertingId, setUpsertingId] = useState<string | null>(null);
-
-  const { location, loading: locationLoading, error: locationError } = useGeolocation();
-  const { data: masjids = [], isLoading: masjidsLoading } = useNearbyMasjids(location?.lat, location?.lng);
-  const { data: counts = {}, isLoading: countsLoading } = useMasjidCarpoolCounts();
-  const { data: timings, isLoading: timingsLoading } = useAladhanTimings(location?.lat, location?.lng);
+  const { location } = useGeolocation();
+  const { data: masjids = [], isLoading: masjidsLoading } = useListMasjids();
+  const { data: counts = {} } = useMasjidCarpoolCounts();
+  const { data: timings } = useAladhanTimings(location?.lat, location?.lng);
 
   const sortedMasjids = useMemo(() => {
-    return [...masjids].map(m => {
-      const distance = location && m.lat && m.lng ? getDistance(location.lat, location.lng, m.lat, m.lng) : 999;
-      return { ...m, distance };
-    }).sort((a, b) => a.distance - b.distance);
+    return [...(masjids as any[])].map((m) => {
+      const dist = location && m.lat && m.lng
+        ? haversineKm(location.lat, location.lng, m.lat, m.lng)
+        : null;
+      return { ...m, dist };
+    }).sort((a, b) => {
+      if (a.dist === null) return 1;
+      if (b.dist === null) return -1;
+      return a.dist - b.dist;
+    });
   }, [masjids, location]);
-
-  const handleMasjidClick = async (m: typeof sortedMasjids[0], prayerKey?: string) => {
-    // We must ensure the masjid exists in the DB before navigating to ride creation
-    let dbId = m.id;
-    if (dbId === -1 && m.googlePlaceId) {
-      setUpsertingId(m.googlePlaceId);
-      try {
-        dbId = await upsertMasjid.mutateAsync({
-          googlePlaceId: m.googlePlaceId,
-          name: m.name,
-          address: m.address,
-          lat: m.lat,
-          lng: m.lng,
-          imageUrl: m.imageUrl
-        });
-      } catch (err) {
-        console.error("Failed to save masjid", err);
-        setUpsertingId(null);
-        return;
-      }
-      setUpsertingId(null);
-    }
-    
-    // Default navigation
-    let url = `/salah/${dbId}`;
-    
-    // If they clicked a specific prayer, go straight to the offer/request flow
-    if (prayerKey) {
-      url = mode === "riding" ? `/requests/new?context=masjid&id=${dbId}&prayer=${prayerKey}` : `/rides/new?context=masjid&id=${dbId}&prayer=${prayerKey}`;
-    }
-    
-    setLocationPath(url);
-  };
-
-  const isLoading = countsLoading || locationLoading || timingsLoading;
-
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
-      <div className="mb-6">
+      <div className="mb-5">
         <h1 className="text-3xl font-extrabold tracking-tight">Salah</h1>
-        <p className="text-muted-foreground mt-1">Find a ride to prayer</p>
+        <p className="text-muted-foreground mt-1 text-sm">Find a ride to prayer near you</p>
       </div>
 
-      {!location && !locationLoading && (
-        <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg text-sm flex gap-3">
-          <MapPin className="w-5 h-5 shrink-0" />
-          <p>Please allow location access to discover masjids near you and see live Adhan times.</p>
-        </div>
-      )}
-
+      {/* Today's prayer times */}
       {timings && (
-        <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-xl">
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" /> 
-            Today's Adhan Times
-          </h2>
-          <div className="flex justify-between text-center overflow-x-auto pb-1 gap-4">
-            {PRAYERS.map((p) => {
-              const Icon = p.icon;
-              return (
-                <div key={p.key} className="shrink-0 flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1.5 ${p.color}`}><Icon className="w-4 h-4" /></div>
-                  <div className="text-[10px] font-medium uppercase tracking-wider">{p.label}</div>
-                  <div className="text-xs font-semibold">{timings[p.label as keyof typeof timings]}</div>
+        <div className="mb-5 rounded-2xl bg-gradient-to-br from-primary/8 to-indigo-50/60 ring-1 ring-primary/15 p-4">
+          <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Today's Prayer Times</p>
+          <div className="grid grid-cols-5 gap-2">
+            {PRAYERS.map(({ key, label, timingKey, Icon, bg, text, dot }) => (
+              <div key={key} className="flex flex-col items-center gap-1">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${bg}`}>
+                  <Icon className={`w-4 h-4 ${text}`} />
                 </div>
-              );
-            })}
+                <span className="text-[10px] font-semibold text-foreground">{label}</span>
+                <span className="text-[11px] font-bold text-muted-foreground tabular-nums">
+                  {timings[timingKey as keyof typeof timings] ?? "—"}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
+      {!location && (
+        <div className="mb-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 ring-1 ring-amber-200 text-sm text-amber-800">
+          <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
+          Allow location access to sort masjids by distance and see live prayer times.
+        </div>
+      )}
+
+      {/* Masjid list */}
       {masjidsLoading ? (
-        <div className="space-y-4">
-          <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
-          <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-40 rounded-2xl bg-muted animate-pulse" />)}
         </div>
       ) : sortedMasjids.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <MapPin className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p>No masjids found nearby.</p>
+        <div className="text-center py-16 text-muted-foreground">
+          <MapPin className="w-10 h-10 mx-auto mb-3 opacity-20" />
+          <p className="font-medium">No masjids found</p>
         </div>
       ) : (
-        <div className="space-y-4 pb-20">
-          {sortedMasjids.map((m) => {
-            const relevantCount = mode === "riding" ? (counts[m.id]?.rides || 0) : (counts[m.id]?.requests || 0);
-            const countLabel = mode === "riding" ? `${relevantCount} driver${relevantCount !== 1 ? 's' : ''} offering` : `${relevantCount} rider${relevantCount !== 1 ? 's' : ''} requesting`;
-            
-            const isUpserting = upsertingId === m.googlePlaceId;
+        <div className="space-y-3 pb-24">
+          {sortedMasjids.map((m: any) => {
+            const rideCount = (counts as any)[m.id]?.rides ?? 0;
+            const reqCount  = (counts as any)[m.id]?.requests ?? 0;
+            const hasActivity = rideCount > 0 || reqCount > 0;
 
             return (
-              <Card key={m.googlePlaceId || m.id} className={`overflow-hidden border-border/50 hover:border-primary/50 transition-colors shadow-sm cursor-pointer ${isUpserting ? 'opacity-70 pointer-events-none' : ''}`} onClick={() => handleMasjidClick(m)}>
-                <CardContent className="p-5 flex-1 flex flex-col relative">
-                  {isUpserting && (
-                     <div className="absolute inset-0 bg-background/50 z-10 flex items-center justify-center backdrop-blur-[1px]">
-                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                     </div>
-                  )}
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold leading-tight line-clamp-1">{m.name}</h3>
-                      <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" /> 
-                        <span className="truncate">{m.distance !== 999 ? `${m.distance.toFixed(1)} mi away` : m.address}</span>
+              <Link key={m.id} href={`/salah/${m.id}`} className="block">
+              <Card
+                className="border-0 ring-1 ring-border/50 hover:ring-primary/40 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+              >
+                <CardContent className="p-0">
+                  {/* Header row */}
+                  <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-base leading-tight truncate">{m.name}</h3>
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="truncate">
+                          {m.dist !== null ? `${(m.dist * 0.621371).toFixed(1)} mi away` : m.address}
+                        </span>
                       </div>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground mt-1 shrink-0" />
-                  </div>
-                  
-                  <div className="mb-4 mt-auto">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${relevantCount > 0 ? (mode === "riding" ? "bg-primary/10 text-primary" : "bg-amber-100 text-amber-700") : "bg-muted text-muted-foreground"}`}>
-                      {mode === "riding" ? <CarFront className="w-3.5 h-3.5" /> : <HandHelping className="w-3.5 h-3.5" />}
-                      {countLabel}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {hasActivity && (
+                        <div className="flex items-center gap-1">
+                          {rideCount > 0 && (
+                            <Badge variant="secondary" className="text-[10px] gap-1 bg-primary/10 text-primary border-0">
+                              <CarFront className="w-2.5 h-2.5" />{rideCount}
+                            </Badge>
+                          )}
+                          {reqCount > 0 && (
+                            <Badge variant="secondary" className="text-[10px] gap-1 bg-amber-100 text-amber-700 border-0">
+                              <HandHelping className="w-2.5 h-2.5" />{reqCount}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-2 pt-4 border-t">
-                    {PRAYERS.map((p) => {
-                      const Icon = p.icon;
-                      return (
-                        <div 
-                          key={p.key} 
-                          className="text-center group cursor-pointer hover:bg-muted/50 rounded-lg p-1 transition-colors relative z-20"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMasjidClick(m, p.key);
-                          }}
-                        >
-                          <div className={`mx-auto w-8 h-8 rounded-full flex items-center justify-center ${p.color} group-hover:ring-2 ring-primary/20 transition-all`}><Icon className="w-4 h-4" /></div>
-                          <div className="text-[10px] font-medium mt-1">{p.label}</div>
-                          <div className="text-[10px] text-muted-foreground">{timings ? timings[p.label as keyof typeof timings] : '--:--'}</div>
+                  {/* Prayer grid */}
+                  <div className="grid grid-cols-5 border-t border-border/40">
+                    {PRAYERS.map(({ key, label, timingKey, Icon, bg, text, dot }) => (
+                      <button
+                        key={key}
+                        className="flex flex-col items-center gap-1 py-3 px-1 hover:bg-muted/60 active:bg-muted transition-colors relative group"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const target = mode === "riding"
+                            ? `/requests/new?contextType=masjid&contextId=${m.id}&prayerName=${label}`
+                            : `/rides/new?contextType=masjid&contextId=${m.id}&prayerName=${label}`;
+                          setLocationPath(target);
+                        }}
+                      >
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bg} group-hover:scale-110 transition-transform`}>
+                          <Icon className={`w-3.5 h-3.5 ${text}`} />
                         </div>
-                      );
-                    })}
+                        <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+                        <span className="text-[10px] font-bold tabular-nums">
+                          {timings ? timings[timingKey as keyof typeof timings] ?? "—" : "—"}
+                        </span>
+                        {/* subtle bottom accent on hover */}
+                        <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full ${dot} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                      </button>
+                    ))}
                   </div>
+
+                  {/* Jumu'ah pill if set */}
+                  {m.jumuah && (
+                    <div className="px-4 pb-3 pt-2 border-t border-border/30 flex items-center gap-2">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Jumu'ah</span>
+                      <Badge variant="secondary" className="text-[11px] font-bold bg-emerald-100 text-emerald-700 border-0">
+                        {m.jumuah}
+                      </Badge>
+                      <button
+                        className="ml-auto text-[10px] text-primary font-semibold hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const target = mode === "riding"
+                            ? `/requests/new?contextType=masjid&contextId=${m.id}&prayerName=Jumu'ah`
+                            : `/rides/new?contextType=masjid&contextId=${m.id}&prayerName=Jumu'ah`;
+                          setLocationPath(target);
+                        }}
+                      >
+                        {mode === "riding" ? "Request ride →" : "Offer ride →"}
+                      </button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )
+              </Link>
+            );
           })}
         </div>
       )}
