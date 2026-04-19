@@ -41,13 +41,14 @@ export default function RequestCreatePage() {
     if (p.notes) setNotes(p.notes);
     if (p.desiredTimeISO) {
       const d = new Date(p.desiredTimeISO);
-      if (!isNaN(d.getTime())) setDesiredTime(d.toISOString().slice(0, 16));
+      if (!isNaN(d.getTime())) setDesiredTime(toDatetimeLocalValue(d));
     }
     const low = Object.entries(p.confidence)
       .filter(([, v]) => v < 0.75)
       .map(([k]) => k);
     setLowConfidenceFields(low);
     setAiPrefilled(true);
+  // Run once on mount to consume and clear NL prefill state
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const prefilledPrayerTime = useRef(false);

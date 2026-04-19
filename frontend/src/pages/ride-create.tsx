@@ -44,13 +44,14 @@ export default function RideCreatePage() {
     if (p.notes) setNotes(p.notes);
     if (p.departureTimeISO) {
       const d = new Date(p.departureTimeISO);
-      if (!isNaN(d.getTime())) setDepartureTime(d.toISOString().slice(0, 16));
+      if (!isNaN(d.getTime())) setDepartureTime(toDatetimeLocalValue(d));
     }
     const low = Object.entries(p.confidence)
       .filter(([, v]) => v < 0.75)
       .map(([k]) => k);
     setLowConfidenceFields(low);
     setAiPrefilled(true);
+  // Run once on mount to consume and clear NL prefill state
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const prefilledPrayerTime = useRef(false);
