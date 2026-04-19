@@ -60,7 +60,7 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 40 33% 98%; /* Warm off-white */
+  --background: 195 22% 97.5%; /* Very light cool tint */
   --foreground: 20 20% 20%; /* Deep earthy brown/black */
   --border: 30 20% 90%;
   
@@ -71,33 +71,33 @@
   --sidebar: 40 33% 98%;
   --sidebar-foreground: 20 20% 20%;
   --sidebar-border: 30 20% 90%;
-  --sidebar-primary: 14 89% 60%;
+  --sidebar-primary: 173 58% 39%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 43 96% 58%;
-  --sidebar-accent-foreground: 20 20% 20%;
-  --sidebar-ring: 14 89% 60%;
+  --sidebar-accent: 199 89% 48%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 173 58% 39%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 20 20% 20%;
   --popover-border: 30 20% 90%;
 
-  --primary: 14 89% 60%; /* Vibrant Coral */
+  --primary: 173 58% 39%; /* Teal */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 43 96% 58%; /* Amber */
-  --secondary-foreground: 20 20% 20%;
+  --secondary: 199 89% 48%; /* Sky */
+  --secondary-foreground: 0 0% 100%;
 
   --muted: 30 20% 94%;
   --muted-foreground: 25 15% 45%;
 
-  --accent: 14 89% 95%; /* Light Coral */
-  --accent-foreground: 14 89% 40%;
+  --accent: 173 40% 94%;
+  --accent-foreground: 173 58% 28%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
   --input: 30 20% 85%;
-  --ring: 14 89% 60%;
+  --ring: 173 58% 39%;
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-serif: Georgia, serif;
@@ -128,33 +128,33 @@
   --sidebar: 20 20% 10%;
   --sidebar-foreground: 40 33% 98%;
   --sidebar-border: 20 15% 20%;
-  --sidebar-primary: 14 89% 60%;
+  --sidebar-primary: 173 55% 45%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 43 96% 58%;
-  --sidebar-accent-foreground: 20 20% 20%;
-  --sidebar-ring: 14 89% 60%;
+  --sidebar-accent: 199 80% 42%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 173 55% 45%;
 
   --popover: 20 15% 12%;
   --popover-foreground: 40 33% 98%;
   --popover-border: 20 15% 20%;
 
-  --primary: 14 89% 60%;
+  --primary: 173 55% 45%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 43 96% 58%;
-  --secondary-foreground: 20 20% 20%;
+  --secondary: 199 80% 42%;
+  --secondary-foreground: 0 0% 100%;
 
   --muted: 20 15% 20%;
   --muted-foreground: 30 10% 70%;
 
-  --accent: 14 89% 25%;
-  --accent-foreground: 14 89% 80%;
+  --accent: 173 35% 22%;
+  --accent-foreground: 173 40% 88%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
   --input: 20 15% 25%;
-  --ring: 14 89% 60%;
+  --ring: 173 55% 45%;
 }
 
 @layer base {

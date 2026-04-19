@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { importLibrary } from "@/lib/google-maps";
+import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from "@/lib/map-defaults";
 import { Button } from "@/components/ui/button";
 import { LocateFixed, MapPin, Loader2 } from "lucide-react";
 
@@ -45,16 +46,12 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      importLibrary("maps"),
-      importLibrary("places"),
-      importLibrary("geocoding"),
-    ]).then(([_maps, _places, _geocoding]) => {
+    Promise.all([importLibrary("maps"), importLibrary("places"), importLibrary("geocoding")]).then(() => {
       if (cancelled || !mapContainerRef.current || !autocompleteInputRef.current) return;
 
       const map = new google.maps.Map(mapContainerRef.current, {
-        center: { lat: 40.7128, lng: -74.006 },
-        zoom: 13,
+        center: { lat: MAP_DEFAULT_CENTER[0], lng: MAP_DEFAULT_CENTER[1] },
+        zoom: MAP_DEFAULT_ZOOM,
         zoomControl: true,
         streetViewControl: false,
         mapTypeControl: false,
@@ -85,7 +82,9 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
         onChange(place.formatted_address ?? `${lat}, ${lng}`, lat, lng);
       });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,7 +105,8 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5" /> Search an address or tap the map to drop a pin.
+          <MapPin className="w-3.5 h-3.5" />
+          Arlington, TX area — search an address or tap the map to drop a pin.
         </p>
         <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={useCurrentLocation} disabled={locating}>
           {locating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5 mr-1" />}
@@ -122,7 +122,9 @@ export function MapPicker({ value, onChange, height = "260px" }: Props) {
       <div ref={mapContainerRef} className="w-full rounded-xl overflow-hidden ring-1 ring-border/50" style={{ height }} />
       <div className="text-sm rounded-lg bg-muted/50 px-3 py-2 min-h-[2.5rem] flex items-center">
         {resolving ? (
-          <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Looking up address…</span>
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Looking up address…
+          </span>
         ) : value ? (
           <span className="text-foreground">{value}</span>
         ) : (

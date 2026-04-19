@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { maySeePersonByGender } from "@/lib/gender-visibility";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ function normalizeRide(r: any) {
       ? {
           id: r.driver.id,
           name: r.driver.name,
+          gender: r.driver.gender ?? null,
           idVerified: r.driver.id_verified,
           carMake: r.driver.car_make,
           carModel: r.driver.car_model,
@@ -63,6 +65,7 @@ function normalizeRide(r: any) {
     passengers: (r.ride_participants ?? []).map((p: any) => ({
       id: p.profiles.id,
       name: p.profiles.name,
+      gender: p.profiles.gender ?? null,
       idVerified: p.profiles.id_verified,
     })),
   };
@@ -98,13 +101,19 @@ function normalizeErrand(e: any) {
 function normalizeRideRequest(rr: any) {
   return {
     id: rr.id,
+    requesterId: rr.requester_id as string | undefined,
     contextType: rr.context_type,
     prayerName: rr.prayer_name,
     pickupLocation: rr.pickup_location,
     desiredTime: rr.desired_time,
     notes: rr.notes,
     requester: rr.requester
-      ? { id: rr.requester.id, name: rr.requester.name, idVerified: rr.requester.id_verified }
+      ? {
+          id: rr.requester.id,
+          name: rr.requester.name,
+          gender: rr.requester.gender ?? null,
+          idVerified: rr.requester.id_verified,
+        }
       : undefined,
   };
 }
@@ -117,6 +126,9 @@ export const getGetEventSummaryQueryKey = (id: number) => ["/events", id, "summa
 export const getListRidesQueryKey = (params?: object) => ["/rides", params] as const;
 export const getGetRideQueryKey = (id: number) => ["/rides", id] as const;
 export const getGetMyRidesQueryKey = () => ["/rides/my"] as const;
+export const getListBookableRidesQueryKey = () => ["/rides/bookable"] as const;
+export const getRideMessagesQueryKey = (rideId: number) => ["/rides", rideId, "messages"] as const;
+export const getRideRequestMessagesQueryKey = (rideRequestId: number) => ["/ride-requests", rideRequestId, "messages"] as const;
 export const getGetRideLocationQueryKey = (id: number) => ["/rides", id, "location"] as const;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -124,13 +136,17 @@ export const getGetRideLocationQueryKey = (id: number) => ["/rides", id, "locati
 export const useGetMe = () =>
   useQuery({
     queryKey: getGetMeQueryKey(),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) throw error ?? new Error("Not authenticated");
+      if (error || !user) return null;
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("name, user_type, id_verified, driver_history_checked, profile_completed, car_make, car_model, car_color")
+        .select(
+          "name, user_type, id_verified, driver_history_checked, profile_completed, car_make, car_model, car_color, gender, age, university, student_id_number, license_plate, vin_number, drivers_license_number, organization_name"
+        )
         .eq("id", user.id)
         .single();
 
@@ -145,6 +161,14 @@ export const useGetMe = () =>
         carMake: profile?.car_make ?? null,
         carModel: profile?.car_model ?? null,
         carColor: profile?.car_color ?? null,
+        gender: profile?.gender ?? null,
+        age: profile?.age ?? null,
+        university: profile?.university ?? null,
+        studentIdNumber: profile?.student_id_number ?? null,
+        licensePlate: profile?.license_plate ?? null,
+        vinNumber: profile?.vin_number ?? null,
+        driversLicenseNumber: profile?.drivers_license_number ?? null,
+        organizationName: profile?.organization_name ?? null,
       };
     },
     retry: false,
@@ -190,6 +214,11 @@ export const useRegister = () =>
 
 export const useLogout = () =>
   useMutation({ mutationFn: () => supabase.auth.signOut() });
+
+/** Only fully verified drivers may publish rides in the app. */
+export function canUserOfferRides(user: { userType: string | null; idVerified: boolean; driverHistoryChecked: boolean } | undefined | null) {
+  return user?.userType === "driver" && !!user.idVerified && !!user.driverHistoryChecked;
+}
 
 // ── Profile setup ─────────────────────────────────────────────────────────────
 
@@ -257,13 +286,78 @@ export const useRunDriverCheck = () =>
   useMutation({
     mutationFn: async () => {
       const userId = await getCurrentUserId();
-      const { error } = await supabase.from("profiles").update({
-        driver_history_checked: true,
-        profile_completed: true,
-      }).eq("id", userId);
+      const { error } = await supabase.from("profiles").update({ driver_history_checked: true }).eq("id", userId);
       if (error) throw { error: error.message };
     },
   });
+
+export const useUpdateMyProfile = () =>
+  useMutation({
+    mutationFn: async (vars: {
+      data: {
+        name?: string;
+        gender?: string;
+        age?: number;
+        university?: string;
+        studentIdNumber?: string;
+        organizationName?: string;
+      };
+    }) => {
+      const userId = await getCurrentUserId();
+      const d = vars.data;
+      const row: Record<string, unknown> = {};
+      if (d.name !== undefined) row.name = d.name;
+      if (d.gender !== undefined) row.gender = d.gender;
+      if (d.age !== undefined) row.age = d.age;
+      if (d.university !== undefined) row.university = d.university;
+      if (d.studentIdNumber !== undefined) row.student_id_number = d.studentIdNumber;
+      if (d.organizationName !== undefined) row.organization_name = d.organizationName;
+      const { error } = await supabase.from("profiles").update(row).eq("id", userId);
+      if (error) throw { error: error.message };
+    },
+  });
+
+/** Update driver-only fields (same columns as registration driver flow). Optionally clears driver check. */
+export const useSaveDriverProfileDetails = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      data: {
+        gender: string;
+        age: number;
+        university: string;
+        studentIdNumber: string;
+        licensePlate: string;
+        vinNumber: string;
+        driversLicenseNumber: string;
+        carMake: string;
+        carModel: string;
+        carColor: string;
+      };
+      clearDriverCheck?: boolean;
+    }) => {
+      const userId = await getCurrentUserId();
+      const d = vars.data;
+      const row: Record<string, unknown> = {
+        user_type: "driver",
+        gender: d.gender,
+        age: d.age,
+        university: d.university,
+        student_id_number: d.studentIdNumber,
+        license_plate: d.licensePlate,
+        vin_number: d.vinNumber,
+        drivers_license_number: d.driversLicenseNumber,
+        car_make: d.carMake,
+        car_model: d.carModel,
+        car_color: d.carColor,
+      };
+      if (vars.clearDriverCheck) row.driver_history_checked = false;
+      const { error } = await supabase.from("profiles").update(row).eq("id", userId);
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: getGetMeQueryKey() }),
+  });
+};
 
 export const useCompleteProfile = () =>
   useMutation({
@@ -299,6 +393,39 @@ export const useGetEvent = (id: number, options?: { query?: Record<string, unkno
     },
     ...options?.query,
   });
+
+export const useCreateEvent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      name: string;
+      location: string;
+      dateTime: string;
+      category?: string;
+      description?: string;
+    }) => {
+      const userId = await getCurrentUserId();
+      const { data: prof, error: perr } = await supabase.from("profiles").select("user_type").eq("id", userId).single();
+      if (perr) throw { error: perr.message };
+      if (prof?.user_type !== "organization") throw { error: "Only organization accounts can create events." };
+      const { data, error } = await supabase
+        .from("events")
+        .insert({
+          name: vars.name.trim(),
+          location: vars.location.trim(),
+          date_time: vars.dateTime,
+          category: (vars.category ?? "General").trim() || "General",
+          description: vars.description?.trim() || null,
+          created_by: userId,
+        })
+        .select()
+        .single();
+      if (error) throw { error: error.message };
+      return normalizeEvent(data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/events"] }),
+  });
+};
 
 export const useGetEventSummary = (id: number, options?: { query?: Record<string, unknown> }) =>
   useQuery({
@@ -371,11 +498,11 @@ export const useGetErrand = (id: number, options?: { query?: Record<string, unkn
 
 const RIDE_SELECT = `
   *,
-  driver:profiles!driver_id(id, name, id_verified, car_make, car_model, car_color, created_at),
+  driver:profiles!driver_id(id, name, gender, id_verified, car_make, car_model, car_color, created_at),
   event:events(id, name, location, date_time),
   masjid:masjids(id, name),
   errand:errands(id, title),
-  ride_participants(profiles(id, name, id_verified))
+  ride_participants(profiles(id, name, gender, id_verified))
 `;
 
 export const useListRides = (
@@ -414,6 +541,137 @@ export const useGetRide = (id: number, options?: { query?: Record<string, unknow
     ...options?.query,
   });
 
+export const useListBookableRides = (options?: { query?: Record<string, unknown> }) =>
+  useQuery({
+    queryKey: getListBookableRidesQueryKey(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rides")
+        .select(RIDE_SELECT)
+        .eq("status", "scheduled")
+        .gt("seats_available", 0)
+        .order("departure_time", { ascending: true });
+      if (error) throw error;
+      return data.map(normalizeRide);
+    },
+    ...options?.query,
+  });
+
+function normalizeRideMessage(m: any) {
+  return {
+    id: m.id,
+    rideId: m.ride_id,
+    senderId: m.sender_id,
+    body: m.body,
+    createdAt: m.created_at,
+  };
+}
+
+export const useRideMessages = (rideId: number, options?: { query?: Record<string, unknown> }) =>
+  useQuery({
+    queryKey: getRideMessagesQueryKey(rideId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ride_messages")
+        .select("id, ride_id, sender_id, body, created_at")
+        .eq("ride_id", rideId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(normalizeRideMessage);
+    },
+    ...options?.query,
+  });
+
+export const useSendRideMessage = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { rideId: number; body: string }) => {
+      const userId = await getCurrentUserId();
+      const text = vars.body.trim();
+      if (!text) throw { error: "Message is empty" };
+      const { data, error } = await supabase
+        .from("ride_messages")
+        .insert({
+          ride_id: vars.rideId,
+          sender_id: userId,
+          body: text,
+        })
+        .select("id, ride_id, sender_id, body, created_at")
+        .single();
+      if (error) throw { error: error.message };
+      return normalizeRideMessage(data);
+    },
+    onSuccess: (msg, vars) => {
+      qc.setQueryData(getRideMessagesQueryKey(vars.rideId), (old: ReturnType<typeof normalizeRideMessage>[] | undefined) => {
+        const list = old ?? [];
+        if (list.some((m) => m.id === msg.id)) return list;
+        return [...list, msg].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      });
+      qc.invalidateQueries({ queryKey: getRideMessagesQueryKey(vars.rideId) });
+    },
+  });
+};
+
+function normalizeRideRequestMessage(m: any) {
+  return {
+    id: m.id,
+    rideRequestId: m.ride_request_id,
+    senderId: m.sender_id,
+    body: m.body,
+    createdAt: m.created_at,
+  };
+}
+
+export const useRideRequestMessages = (rideRequestId: number, options?: { query?: Record<string, unknown> }) =>
+  useQuery({
+    queryKey: getRideRequestMessagesQueryKey(rideRequestId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ride_request_messages")
+        .select("id, ride_request_id, sender_id, body, created_at")
+        .eq("ride_request_id", rideRequestId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(normalizeRideRequestMessage);
+    },
+    ...options?.query,
+  });
+
+export const useSendRideRequestMessage = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { rideRequestId: number; body: string }) => {
+      const userId = await getCurrentUserId();
+      const text = vars.body.trim();
+      if (!text) throw { error: "Message is empty" };
+      const { data, error } = await supabase
+        .from("ride_request_messages")
+        .insert({
+          ride_request_id: vars.rideRequestId,
+          sender_id: userId,
+          body: text,
+        })
+        .select("id, ride_request_id, sender_id, body, created_at")
+        .single();
+      if (error) throw { error: error.message };
+      return normalizeRideRequestMessage(data);
+    },
+    onSuccess: (msg, vars) => {
+      qc.setQueryData(getRideRequestMessagesQueryKey(vars.rideRequestId), (old: ReturnType<typeof normalizeRideRequestMessage>[] | undefined) => {
+        const list = old ?? [];
+        if (list.some((m) => m.id === msg.id)) return list;
+        return [...list, msg].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      });
+      qc.invalidateQueries({ queryKey: getRideRequestMessagesQueryKey(vars.rideRequestId) });
+      qc.invalidateQueries({ queryKey: ["/ride-requests"] });
+    },
+  });
+};
+
 export const useGetRideLocation = (id: number, options?: { query?: Record<string, unknown> }) =>
   useQuery({
     queryKey: getGetRideLocationQueryKey(id),
@@ -443,6 +701,15 @@ export const useCreateRide = () => {
   return useMutation({
     mutationFn: async (vars: { data: Record<string, unknown> }) => {
       const userId = await getCurrentUserId();
+      const { data: prof, error: profErr } = await supabase
+        .from("profiles")
+        .select("user_type, id_verified, driver_history_checked")
+        .eq("id", userId)
+        .single();
+      if (profErr) throw { error: profErr.message };
+      if (prof?.user_type !== "driver" || !prof.id_verified || !prof.driver_history_checked) {
+        throw { error: "Only verified drivers can offer rides. Complete driver verification in your profile." };
+      }
       const d = vars.data as any;
       const { data, error } = await supabase
         .from("rides")
@@ -466,7 +733,10 @@ export const useCreateRide = () => {
       if (error) throw { error: error.message };
       return { id: data.id };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/rides"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/rides"] });
+      qc.invalidateQueries({ queryKey: getListBookableRidesQueryKey() });
+    },
   });
 };
 
@@ -475,6 +745,20 @@ export const useJoinRide = () => {
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
       const userId = await getCurrentUserId();
+      const { data: ride, error: rideErr } = await supabase
+        .from("rides")
+        .select("driver_id, driver:profiles!driver_id(gender)")
+        .eq("id", vars.rideId)
+        .single();
+      if (rideErr) throw { error: rideErr.message };
+      if (ride?.driver_id === userId) throw { error: "You can’t book a seat on your own ride." };
+      const { data: prof, error: profErr } = await supabase.from("profiles").select("gender, user_type").eq("id", userId).single();
+      if (profErr) throw { error: profErr.message };
+      const driverGender = (ride as { driver?: { gender?: string | null } }).driver?.gender ?? null;
+      const viewer = { id: userId, gender: prof?.gender ?? null, userType: prof?.user_type ?? null };
+      if (!maySeePersonByGender(viewer, driverGender)) {
+        throw { error: "Same-gender rides only — this driver’s offer isn’t available to your account." };
+      }
       const { error: joinError } = await supabase
         .from("ride_participants")
         .insert({ ride_id: vars.rideId, user_id: userId });
@@ -482,7 +766,12 @@ export const useJoinRide = () => {
       const { error: seatError } = await supabase.rpc("decrement_seat", { ride_id: vars.rideId });
       if (seatError) throw { error: seatError.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) });
+      qc.invalidateQueries({ queryKey: getListBookableRidesQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetMyRidesQueryKey() });
+      qc.invalidateQueries({ queryKey: getRideMessagesQueryKey(vars.rideId) });
+    },
   });
 };
 
@@ -500,7 +789,11 @@ export const useLeaveRide = () => {
       const { error: seatError } = await supabase.rpc("increment_seat", { ride_id: vars.rideId });
       if (seatError) throw { error: seatError.message };
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) });
+      qc.invalidateQueries({ queryKey: getListBookableRidesQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetMyRidesQueryKey() });
+    },
   });
 };
 
@@ -573,7 +866,7 @@ export const useListRideRequests = (
     queryFn: async () => {
       let query = supabase
         .from("ride_requests")
-        .select("*, requester:profiles!requester_id(id, name, id_verified)")
+        .select("*, requester:profiles!requester_id(id, name, gender, id_verified)")
         .order("desired_time", { ascending: true });
 
       if (params.contextType) query = query.eq("context_type", params.contextType);

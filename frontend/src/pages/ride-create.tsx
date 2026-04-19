@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useCreateRide } from "@/lib/api-client";
+import { useCreateRide, useGetMe, canUserOfferRides } from "@/lib/api-client";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatetimeLocalInput } from "@/components/DatetimeLocalInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,7 @@ export default function RideCreatePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const createRide = useCreateRide();
+  const { data: me, isLoading: meLoading } = useGetMe();
 
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const contextType = (params.get("contextType") as "event" | "masjid" | "errand") || "event";
@@ -40,6 +42,35 @@ export default function RideCreatePage() {
     );
   };
 
+  if (meLoading) {
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto h-40 animate-pulse rounded-xl bg-muted" />
+      </Layout>
+    );
+  }
+
+  if (!me) {
+    return (
+      <Layout>
+        <p className="text-center text-muted-foreground py-12">Sign in to offer a ride.</p>
+      </Layout>
+    );
+  }
+
+  if (!canUserOfferRides(me)) {
+    return (
+      <Layout>
+        <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => setLocation("/profile")}><ArrowLeft className="w-4 h-4 mr-1" /> Profile</Button>
+        <div className="max-w-xl mx-auto text-center py-12 space-y-4">
+          <h1 className="text-2xl font-bold">Verified drivers only</h1>
+          <p className="text-muted-foreground">Complete ID verification and the driver history check under Profile before offering rides.</p>
+          <Button className="rounded-full" onClick={() => setLocation("/profile")}>Open profile</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => window.history.back()}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
@@ -59,7 +90,7 @@ export default function RideCreatePage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Departure time</Label>
-                  <Input type="datetime-local" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} required />
+                  <DatetimeLocalInput value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label>Seats available</Label>

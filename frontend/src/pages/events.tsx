@@ -1,8 +1,9 @@
 import { Link } from "wouter";
-import { useListEvents } from "@/lib/api-client";
+import { useListEvents, useGetMe } from "@/lib/api-client";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -16,12 +17,20 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function EventsPage() {
   const { data: events = [], isLoading } = useListEvents();
+  const { data: me } = useGetMe();
 
   return (
     <Layout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Upcoming events</h1>
-        <p className="text-muted-foreground mt-1">Find rides to events your community is going to.</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Upcoming events</h1>
+          <p className="text-muted-foreground mt-1">Find rides to events your community is going to.</p>
+        </div>
+        {me?.userType === "organization" && (
+          <Button className="rounded-full shrink-0" asChild>
+            <Link href="/events/new">Create event</Link>
+          </Button>
+        )}
       </div>
 
       {isLoading ? (

@@ -4,13 +4,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGetMe } from "@/lib/api-client";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
+import { Layout } from "@/components/Layout";
 
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import ProfileSetupPage from "@/pages/profile-setup";
+import HomePage from "@/pages/home";
+import ProfilePage from "@/pages/profile";
 import EventsPage from "@/pages/events";
 import EventDetailPage from "@/pages/event-detail";
+import EventCreatePage from "@/pages/event-create";
 import SalahPage from "@/pages/salah";
 import MasjidDetailPage from "@/pages/masjid-detail";
 import ErrandsPage from "@/pages/errands";
@@ -26,37 +30,89 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProfileGuard({ children }: { children: React.ReactNode }) {
+function SessionGuard({ children }: { children: ReactNode }) {
   const { data: user, isLoading } = useGetMe();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isLoading && user && !user.profileCompleted && location !== "/profile-setup") {
-      setLocation("/profile-setup");
+    if (isLoading) return;
+    if (!user) {
+      const path = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
+      setLocation(`/login?next=${encodeURIComponent(path)}`, { replace: true });
     }
-    if (!isLoading && !user && location !== "/") {
-      setLocation("/");
-    }
-  }, [user, isLoading, location, setLocation]);
+  }, [user, isLoading, setLocation]);
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto h-48 animate-pulse rounded-xl bg-muted" />
+      </Layout>
+    );
+  }
+  if (!user) {
+    return (
+      <Layout>
+        <p className="text-center py-16 text-muted-foreground text-sm">Redirecting to sign in…</p>
+      </Layout>
+    );
+  }
+  return <>{children}</>;
+}
+
+function CompleteProfileGuard({ children }: { children: ReactNode }) {
+  const { data: user, isLoading } = useGetMe();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    if (!user.profileCompleted) setLocation("/profile-setup", { replace: true });
+  }, [user, isLoading, setLocation]);
+
+  if (isLoading || !user) return null;
+  if (!user.profileCompleted) {
+    return (
+      <Layout>
+        <p className="text-center py-16 text-muted-foreground text-sm">Continue profile setup…</p>
+      </Layout>
+    );
+  }
   return <>{children}</>;
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={AuthPage} />
-      <Route path="/profile-setup" component={ProfileSetupPage} />
-      <Route path="/salah">{() => <ProfileGuard><SalahPage /></ProfileGuard>}</Route>
-      <Route path="/salah/:masjidId">{(p) => <ProfileGuard><MasjidDetailPage masjidId={parseInt(p.masjidId)} /></ProfileGuard>}</Route>
-      <Route path="/events">{() => <ProfileGuard><EventsPage /></ProfileGuard>}</Route>
-      <Route path="/events/:eventId">{(p) => <ProfileGuard><EventDetailPage eventId={parseInt(p.eventId)} /></ProfileGuard>}</Route>
-      <Route path="/errands">{() => <ProfileGuard><ErrandsPage /></ProfileGuard>}</Route>
-      <Route path="/errands/:errandId">{(p) => <ProfileGuard><ErrandDetailPage errandId={parseInt(p.errandId)} /></ProfileGuard>}</Route>
-      <Route path="/rides/new" component={RideCreatePage} />
-      <Route path="/requests/new" component={RequestCreatePage} />
-      <Route path="/rides/:rideId">{(p) => <ProfileGuard><RideDetailPage rideId={parseInt(p.rideId)} /></ProfileGuard>}</Route>
-      <Route path="/my-rides">{() => <ProfileGuard><MyRidesPage /></ProfileGuard>}</Route>
+      <Route path="/" component={HomePage} />
+      <Route path="/login" component={AuthPage} />
+      <Route path="/profile-setup">
+        {() => (
+          <SessionGuard>
+            <ProfileSetupPage />
+          </SessionGuard>
+        )}
+      </Route>
+
+      <Route path="/events" component={EventsPage} />
+      <Route path="/events/:eventId">{(p) => <EventDetailPage eventId={parseInt(p.eventId)} />}</Route>
+      <Route path="/salah" component={SalahPage} />
+      <Route path="/salah/:masjidId">{(p) => <MasjidDetailPage masjidId={parseInt(p.masjidId)} />}</Route>
+      <Route path="/errands" component={ErrandsPage} />
+      <Route path="/errands/:errandId">{(p) => <ErrandDetailPage errandId={parseInt(p.errandId)} />}</Route>
+      <Route path="/rides/:rideId">{(p) => <RideDetailPage rideId={parseInt(p.rideId)} />}</Route>
+
+      <Route path="/events/new">
+        {() => (
+          <SessionGuard>
+            <CompleteProfileGuard>
+              <EventCreatePage />
+            </CompleteProfileGuard>
+          </SessionGuard>
+        )}
+      </Route>
+      <Route path="/profile">{() => <SessionGuard><CompleteProfileGuard><ProfilePage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/rides/new">{() => <SessionGuard><CompleteProfileGuard><RideCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/requests/new">{() => <SessionGuard><CompleteProfileGuard><RequestCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/my-rides">{() => <SessionGuard><CompleteProfileGuard><MyRidesPage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route component={NotFound} />
     </Switch>
   );

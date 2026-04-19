@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { importLibrary } from "@/lib/google-maps";
 import { useGetRideLocation, getGetRideLocationQueryKey } from "@/lib/api-client";
+import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from "@/lib/map-defaults";
 
 interface Props {
   rideId: number;
@@ -22,15 +23,12 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      importLibrary("maps"),
-      importLibrary("routes"),
-    ]).then(() => {
+    Promise.all([importLibrary("maps"), importLibrary("routes")]).then(() => {
       if (cancelled || !containerRef.current || mapRef.current) return;
 
       const map = new google.maps.Map(containerRef.current, {
-        center: { lat: 40.72, lng: -74.0 },
-        zoom: 13,
+        center: { lat: MAP_DEFAULT_CENTER[0], lng: MAP_DEFAULT_CENTER[1] },
+        zoom: MAP_DEFAULT_ZOOM,
         zoomControl: true,
         streetViewControl: false,
         mapTypeControl: false,
@@ -44,7 +42,9 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
       });
       rendererRef.current.setMap(map);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

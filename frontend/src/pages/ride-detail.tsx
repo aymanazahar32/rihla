@@ -1,4 +1,4 @@
-import { useGetRide, useJoinRide, useLeaveRide, useDeleteRide, useStartRide, useCompleteRide, useGetMe, getGetRideQueryKey, getGetMyRidesQueryKey } from "@/lib/api-client";
+import { useGetRide, useJoinRide, useLeaveRide, useDeleteRide, useStartRide, useCompleteRide, useGetMe, getGetRideQueryKey, getGetMyRidesQueryKey, getListBookableRidesQueryKey } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CarFront, MapPin, Clock, Users, ArrowLeft, Trash2, ShieldCheck, Play, CheckCircle2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { LiveMap } from "@/components/LiveMap";
+import { RideThread } from "@/components/RideThread";
+import { maySeePersonByGender, displayNameForGenderPolicy } from "@/lib/gender-visibility";
 
 function initials(n: string) {
   return n.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
@@ -30,13 +32,42 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
   if (isLoading) return <Layout><div className="h-64 animate-pulse bg-muted rounded-xl" /></Layout>;
   if (!ride) return <Layout><div className="text-center py-16 text-muted-foreground">Ride not found.</div></Layout>;
 
+  const viewer = me ? { id: me.id, gender: me.gender, userType: me.userType } : null;
   const isDriver = me?.id === ride.driverId;
-  const isPassenger = ride.passengers?.some((p: any) => p.id === me?.id);
+  const isPassenger = ride.passengers?.some((p: { id: string }) => p.id === me?.id);
+  const genderBlocked =
+    !!me && !isDriver && !isPassenger && !maySeePersonByGender(viewer, ride.driver?.gender);
+
+  const canReadRideChat =
+    !!me?.id &&
+    !genderBlocked &&
+    (isDriver || isPassenger || ride.status === "scheduled");
+  const canPostRideChat =
+    !!me?.id &&
+    !genderBlocked &&
+    (isDriver || isPassenger || (ride.status === "scheduled" && !isDriver));
   const dest = ride.event?.name || ride.masjid?.name || ride.errand?.title || "Trip";
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: getGetRideQueryKey(rideId) });
     queryClient.invalidateQueries({ queryKey: getGetMyRidesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListBookableRidesQueryKey() });
   };
+
+  const driverLabel =
+    ride.driverId && ride.driver?.name
+      ? displayNameForGenderPolicy(viewer, ride.driverId, ride.driver.name, ride.driver.gender)
+      : "Driver";
+
+  const nameByUserId: Record<string, string> = {};
+  if (ride.driverId && ride.driver?.name) {
+    nameByUserId[ride.driverId] = driverLabel;
+  }
+  (ride.passengers ?? []).forEach((p: { id: string; name: string; gender?: string | null }) => {
+    nameByUserId[p.id] = displayNameForGenderPolicy(viewer, p.id, p.name, p.gender);
+  });
+  if (me?.id && me.name) nameByUserId[me.id] = me.name;
+
+  const loginNext = encodeURIComponent(`/rides/${rideId}`);
 
   return (
     <Layout>
@@ -63,44 +94,76 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
             </CardContent>
           </Card>
 
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Logistics & live tracking</h2>
-            <LiveMap rideId={ride.id} height="380px" />
-          </div>
+          {!genderBlocked && (
+            <div>
+              <h2 className="text-lg font-semibold mb-3">Logistics & live tracking</h2>
+              <LiveMap rideId={ride.id} height="380px" />
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
-          <Card className="border-0 ring-1 ring-border/40">
-            <CardContent className="p-5">
-              <div className="text-xs text-muted-foreground uppercase font-semibold mb-3">Driver</div>
-              <div className="flex items-center gap-3">
-                <Avatar className="w-12 h-12"><AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials(ride.driver?.name ?? "?")}</AvatarFallback></Avatar>
-                <div>
-                  <div className="font-semibold flex items-center gap-1">{ride.driver?.name} {ride.driver?.idVerified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}</div>
-                  <div className="text-xs text-muted-foreground">{ride.driver?.carColor} {ride.driver?.carMake} {ride.driver?.carModel}</div>
+          {genderBlocked ? (
+            <Card className="border-0 ring-1 ring-amber-200/60 bg-amber-50/30">
+              <CardContent className="p-5 text-sm text-muted-foreground">
+                Same-gender rides only. Driver and passenger details on this offer are not shown to your account.
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-0 ring-1 ring-border/40">
+              <CardContent className="p-5">
+                <div className="text-xs text-muted-foreground uppercase font-semibold mb-3">Driver</div>
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12"><AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials(driverLabel)}</AvatarFallback></Avatar>
+                  <div>
+                    <div className="font-semibold flex items-center gap-1">{driverLabel} {ride.driver?.idVerified && driverLabel !== "Member" && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}</div>
+                    <div className="text-xs text-muted-foreground">{ride.driver?.carColor} {ride.driver?.carMake} {ride.driver?.carModel}</div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card className="border-0 ring-1 ring-border/40">
-            <CardContent className="p-5">
-              <div className="text-xs text-muted-foreground uppercase font-semibold mb-3">Passengers ({ride.passengers?.length ?? 0})</div>
-              {(!ride.passengers || ride.passengers.length === 0) ? (
-                <div className="text-sm text-muted-foreground">No passengers yet.</div>
-              ) : (
-                <div className="space-y-2">
-                  {ride.passengers.map((p: any) => (
-                    <div key={p.id} className="flex items-center gap-2 text-sm">
-                      <Avatar className="w-7 h-7"><AvatarFallback className="bg-muted text-xs">{initials(p.name)}</AvatarFallback></Avatar>
-                      <span>{p.name}</span>
-                      {p.idVerified && <ShieldCheck className="w-3 h-3 text-emerald-500" />}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {!genderBlocked && (
+            <Card className="border-0 ring-1 ring-border/40">
+              <CardContent className="p-5">
+                <div className="text-xs text-muted-foreground uppercase font-semibold mb-3">Passengers ({ride.passengers?.length ?? 0})</div>
+                {(!ride.passengers || ride.passengers.length === 0) ? (
+                  <div className="text-sm text-muted-foreground">No passengers yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {ride.passengers.map((p: { id: string; name: string; gender?: string | null; idVerified?: boolean }) => {
+                      const label = displayNameForGenderPolicy(viewer, p.id, p.name, p.gender);
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 text-sm">
+                          <Avatar className="w-7 h-7"><AvatarFallback className="bg-muted text-xs">{initials(label)}</AvatarFallback></Avatar>
+                          <span>{label}</span>
+                          {p.idVerified && label !== "Member" && <ShieldCheck className="w-3 h-3 text-emerald-500" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {canReadRideChat && (
+            <RideThread
+              rideId={ride.id}
+              currentUserId={me!.id}
+              nameByUserId={nameByUserId}
+              canParticipate={canPostRideChat}
+              preJoinGuest={ride.status === "scheduled" && !isDriver && !isPassenger}
+            />
+          )}
+          {me?.id && !canReadRideChat && ride.status !== "scheduled" && me.id !== ride.driverId && !genderBlocked && (
+            <Card className="border-0 ring-1 ring-border/40">
+              <CardContent className="p-4 text-sm text-muted-foreground">
+                Chat is available for scheduled rides before you book, or when you are on the ride.
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-0 ring-1 ring-border/40">
             <CardContent className="p-5 space-y-2">
@@ -124,9 +187,31 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
                 <Button variant="outline" className="w-full rounded-full" onClick={() => leave.mutate({ rideId }, { onSuccess: () => { refresh(); toast({ title: "Left ride" }); } })}>
                   Leave ride
                 </Button>
+              ) : genderBlocked ? null : !me ? (
+                <Link href={`/login?next=${loginNext}`}>
+                  <Button className="w-full rounded-full">Log in to book this ride</Button>
+                </Link>
               ) : (
-                <Button className="w-full rounded-full" disabled={ride.seatsAvailable <= 0} onClick={() => join.mutate({ rideId }, { onSuccess: () => { refresh(); toast({ title: "Joined!" }); } })}>
-                  {ride.seatsAvailable <= 0 ? "Full" : "Join this ride"}
+                <Button
+                  className="w-full rounded-full"
+                  disabled={ride.seatsAvailable <= 0}
+                  onClick={() =>
+                    join.mutate(
+                      { rideId },
+                      {
+                        onSuccess: () => {
+                          refresh();
+                          toast({ title: "Seat booked!", description: "You’re on this ride." });
+                        },
+                        onError: (err: unknown) => {
+                          const e = err as { error?: string };
+                          toast({ title: "Could not book", description: e?.error, variant: "destructive" });
+                        },
+                      }
+                    )
+                  }
+                >
+                  {ride.seatsAvailable <= 0 ? "Full" : "Book this ride"}
                 </Button>
               )}
             </CardContent>

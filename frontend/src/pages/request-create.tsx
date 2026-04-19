@@ -5,6 +5,7 @@ import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatetimeLocalInput } from "@/components/DatetimeLocalInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -57,7 +58,7 @@ export default function RequestCreatePage() {
               </div>
               <div className="space-y-2">
                 <Label>Desired pickup time</Label>
-                <Input type="datetime-local" value={desiredTime} onChange={(e) => setDesiredTime(e.target.value)} required />
+                <DatetimeLocalInput value={desiredTime} onChange={(e) => setDesiredTime(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label>Notes (optional)</Label>
