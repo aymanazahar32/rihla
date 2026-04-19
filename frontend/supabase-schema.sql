@@ -64,6 +64,7 @@ create table if not exists masjids (
   address     text not null,
   description text,
   image_url   text,
+  google_place_id text unique,
   lat         double precision,
   lng         double precision,
   fajr        text,
@@ -76,6 +77,7 @@ create table if not exists masjids (
 );
 alter table masjids enable row level security;
 create policy "Anyone can read masjids" on masjids for select using (true);
+create policy "Anyone can insert masjids" on masjids for insert with check (true);
 
 -- ─── 4. Errands ───────────────────────────────────────────────────────────────
 create table if not exists errands (

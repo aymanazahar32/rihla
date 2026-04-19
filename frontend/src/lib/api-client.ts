@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { maySeePersonByGender } from "@/lib/gender-visibility";
+import { searchNearbyMasjids } from "@/lib/google-maps";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ function normalizeMasjid(masjid: any) {
     address: masjid.address,
     description: masjid.description,
     imageUrl: masjid.image_url,
+    googlePlaceId: masjid.google_place_id,
     lat: masjid.lat,
     lng: masjid.lng,
     fajr: masjid.fajr,
@@ -475,6 +477,81 @@ export const useGetMasjid = (id: number, options?: { query?: Record<string, unkn
     ...options?.query,
   });
 
+export const useNearbyMasjids = (lat?: number, lng?: number) =>
+  useQuery({
+    queryKey: ["/masjids/nearby", lat, lng],
+    queryFn: async () => {
+      if (!lat || !lng) return [];
+      const results = await searchNearbyMasjids(lat, lng);
+      
+      if (results.length === 0) return [];
+      
+      const placeIds = results.map(r => r.place_id).filter(Boolean);
+      
+      // Fetch any of these places that already exist in our DB to get their integer ID
+      const { data: existingDbMasjids } = await supabase
+        .from("masjids")
+        .select("id, google_place_id")
+        .in("google_place_id", placeIds);
+        
+      const dbMap = new Map(existingDbMasjids?.map(m => [m.google_place_id, m.id]) || []);
+
+      // Map Google Place results to match our normalized Masjid interface
+      return results.map(p => ({
+        id: p.place_id ? (dbMap.get(p.place_id) || -1) : -1, // Use real ID if exists, else -1
+        googlePlaceId: p.place_id,
+        name: p.name || "Unknown Masjid",
+        address: p.vicinity || "",
+        lat: p.geometry?.location?.lat() || 0,
+        lng: p.geometry?.location?.lng() || 0,
+        imageUrl: p.photos && p.photos.length > 0 ? p.photos[0].getUrl({ maxWidth: 400 }) : null,
+      }));
+    },
+    enabled: !!lat && !!lng,
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+
+export const useUpsertMasjid = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { 
+      googlePlaceId: string, 
+      name: string, 
+      address: string, 
+      lat: number, 
+      lng: number, 
+      imageUrl?: string | null 
+    }) => {
+      // Check if it already exists
+      const { data: existing, error: findError } = await supabase
+        .from("masjids")
+        .select("id")
+        .eq("google_place_id", vars.googlePlaceId)
+        .maybeSingle();
+      
+      if (existing) return existing.id as number;
+
+      // Insert if not exists
+      const { data, error } = await supabase
+        .from("masjids")
+        .insert({
+          google_place_id: vars.googlePlaceId,
+          name: vars.name,
+          address: vars.address,
+          lat: vars.lat,
+          lng: vars.lng,
+          image_url: vars.imageUrl || null,
+        })
+        .select("id")
+        .single();
+        
+      if (error) throw { error: error.message };
+      return data.id as number;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/masjids"] }),
+  });
+};
+
 export const useMasjidCarpoolCounts = () =>
   useQuery({
     queryKey: ["/masjids/counts"],
@@ -844,6 +921,39 @@ export const useDeleteRide = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/rides"] }),
   });
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aladhan API (Prayer Timings)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AladhanTimings {
+  Fajr: string;
+  Sunrise: string;
+  Dhuhr: string;
+  Asr: string;
+  Sunset: string;
+  Maghrib: string;
+  Isha: string;
+  Imsak: string;
+  Midnight: string;
+  Firstthird: string;
+  Lastthird: string;
+}
+
+export function useAladhanTimings(lat?: number, lng?: number) {
+  return useQuery<AladhanTimings>({
+    queryKey: ["aladhan", lat, lng],
+    queryFn: async () => {
+      if (lat === undefined || lng === undefined) throw new Error("Missing coordinates");
+      const res = await fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=2`);
+      if (!res.ok) throw new Error("Failed to fetch timings");
+      const json = await res.json();
+      return json.data.timings;
+    },
+    enabled: lat !== undefined && lng !== undefined,
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+}
 
 export const useStartRide = () => {
   const qc = useQueryClient();
