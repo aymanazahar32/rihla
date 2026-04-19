@@ -10,7 +10,7 @@ import { DatetimeLocalInput } from "@/components/DatetimeLocalInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, CarFront, Sparkles } from "lucide-react";
+import { ArrowLeft, CarFront, Sparkles, AlertTriangle } from "lucide-react";
 import { useNLPrefill } from "@/lib/NLPrefillContext";
 import { MapPicker } from "@/components/MapPicker";
 
@@ -132,6 +132,12 @@ export default function RideCreatePage() {
         <Card className="border-0 ring-1 ring-border/40">
           <CardContent className="p-8">
             <form onSubmit={onSubmit} className="space-y-5">
+              {!contextId && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>No destination matched. Go back and select a masjid, event, or errand from its detail page to link this ride.</span>
+                </div>
+              )}
               {aiPrefilled && (
                 <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2.5 text-sm text-primary font-medium">
                   <Sparkles className="w-4 h-4 shrink-0" />

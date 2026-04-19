@@ -27,6 +27,7 @@ import RideDetailPage from "@/pages/ride-detail";
 import DriverModePage from "@/pages/driver-mode";
 import RequestCreatePage from "@/pages/request-create";
 import MyRidesPage from "@/pages/my-rides";
+import MatchResultsPage from "@/pages/match-results";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,6 +112,9 @@ function Router() {
           </SessionGuard>
         )}
       </Route>
+      <Route path="/match" component={MatchResultsPage} />
+      <Route path="/rides/new">{() => <SessionGuard><CompleteProfileGuard><RideCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/requests/new">{() => <SessionGuard><CompleteProfileGuard><RequestCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route path="/rides/:rideId">{(p) => <RideDetailPage rideId={parseInt(p.rideId)} />}</Route>
 
       <Route path="/events/new">
@@ -123,8 +127,6 @@ function Router() {
         )}
       </Route>
       <Route path="/profile">{() => <SessionGuard><CompleteProfileGuard><ProfilePage /></CompleteProfileGuard></SessionGuard>}</Route>
-      <Route path="/rides/new">{() => <SessionGuard><CompleteProfileGuard><RideCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
-      <Route path="/requests/new">{() => <SessionGuard><CompleteProfileGuard><RequestCreatePage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route path="/my-rides">{() => <SessionGuard><CompleteProfileGuard><MyRidesPage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route component={NotFound} />
     </Switch>

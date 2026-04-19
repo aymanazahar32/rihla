@@ -2,9 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMode } from "@/lib/ModeContext";
 import { Calendar, Moon, ShoppingBag, MapPin, Sparkles, Mic, MicOff, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useListMasjids, useGetMe, useGetMyRequests, useGetMyRides, useListEvents, useListErrands } from "@/lib/api-client";
 import { HomeMap } from "@/components/HomeMap";
 import { MatchBanner } from "@/components/MatchBanner";
@@ -15,7 +13,6 @@ import { parseRideIntent } from "@/lib/parse-ride-intent";
 import { useNLPrefill } from "@/lib/NLPrefillContext";
 
 export default function HomePage() {
-  const { mode, setMode } = useMode();
   const { data: masjids = [], isLoading: masjidsLoading } = useListMasjids();
   const { data: me } = useGetMe();
   const { data: myRequests = [] } = useGetMyRequests();
@@ -45,25 +42,22 @@ export default function HomePage() {
     hint: string | null
   ): number | undefined => {
     if (!contextType || !hint) return undefined;
-    const h = hint.toLowerCase();
-    if (contextType === "masjid") {
-      const match = (masjids as any[]).find(
-        (m) => m.name.toLowerCase().includes(h) || h.includes(m.name.toLowerCase())
-      );
-      return match?.id;
-    }
-    if (contextType === "event") {
-      const match = (events as any[]).find(
-        (e) => e.name.toLowerCase().includes(h) || h.includes(e.name.toLowerCase())
-      );
-      return match?.id;
-    }
-    if (contextType === "errand") {
-      const match = (errands as any[]).find(
-        (e) => e.title.toLowerCase().includes(h) || h.includes(e.title.toLowerCase())
-      );
-      return match?.id;
-    }
+    const hWords = hint.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const score = (name: string) => {
+      const n = name.toLowerCase();
+      if (n === hint.toLowerCase()) return 3;
+      if (n.includes(hint.toLowerCase()) || hint.toLowerCase().includes(n)) return 2;
+      const matched = hWords.filter((w) => n.includes(w));
+      return matched.length / Math.max(hWords.length, 1);
+    };
+    const pick = (items: any[], nameKey: string) => {
+      const scored = items.map((item) => ({ item, s: score(item[nameKey] ?? "") }));
+      scored.sort((a, b) => b.s - a.s);
+      return scored[0]?.s > 0 ? scored[0].item : undefined;
+    };
+    if (contextType === "masjid") return pick(masjids as any[], "name")?.id;
+    if (contextType === "event") return pick(events as any[], "name")?.id;
+    if (contextType === "errand") return pick(errands as any[], "title")?.id;
     return undefined;
   };
 
@@ -79,12 +73,19 @@ export default function HomePage() {
       setPrefill({ ...parsed, contextId });
 
       const params = new URLSearchParams();
+      params.set("intent", parsed.intent);
       if (parsed.contextType) params.set("contextType", parsed.contextType);
       if (contextId) params.set("contextId", String(contextId));
       if (parsed.prayerName) params.set("prayerName", parsed.prayerName);
+      const timeISO = parsed.intent === "offer" ? parsed.departureTimeISO : parsed.desiredTimeISO;
+      if (timeISO) params.set("timeISO", timeISO);
 
-      const path = parsed.intent === "offer" ? "/rides/new" : "/requests/new";
-      setLocation(`${path}?${params.toString()}`);
+      if (contextId) {
+        setLocation(`/match?${params.toString()}`);
+      } else {
+        const path = parsed.intent === "offer" ? "/rides/new" : "/requests/new";
+        setLocation(`${path}?${params.toString()}`);
+      }
     } catch (err) {
       console.error("[parseRideIntent]", err);
       setNlError("Couldn't parse that — try rephrasing.");
@@ -159,41 +160,13 @@ export default function HomePage() {
         />
       )}
       <div className="flex flex-col h-full w-full gap-4">
-        {/* Top Toggle */}
-        <div className="flex justify-center">
-          <div className="inline-flex items-center rounded-full border p-1 bg-muted/40 shadow-sm">
-            <button
-              onClick={() => setMode("riding")}
-              className={cn(
-                "px-8 py-2.5 rounded-full text-sm font-semibold transition-all duration-200",
-                mode === "riding" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Riding
-            </button>
-            <button
-              onClick={() => setMode("driving")}
-              className={cn(
-                "px-8 py-2.5 rounded-full text-sm font-semibold transition-all duration-200",
-                mode === "driving" ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Driving
-            </button>
-          </div>
-        </div>
-
         {/* NL Input Bar */}
         <div className="flex-shrink-0 space-y-1.5">
           <div className="flex items-center gap-2 rounded-2xl bg-card ring-1 ring-border/50 px-4 py-3 shadow-sm focus-within:ring-primary/50 transition-shadow">
             <Sparkles className="w-4 h-4 text-primary shrink-0" />
             <input
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              placeholder={
-                mode === "driving"
-                  ? "e.g. Going to Jumu'ah at ICA, leaving UTA, 3 seats"
-                  : "e.g. Need a ride to the MSA halal dinner Friday"
-              }
+              placeholder="e.g. Going to ADAMS Center for Isha tonight — need a ride or offering?"
               value={nlText}
               onChange={(e) => { setNlText(e.target.value); if (nlError) setNlError(null); }}
               onKeyDown={(e) => e.key === "Enter" && handleNLSubmit()}

@@ -10,7 +10,7 @@ import { DatetimeLocalInput } from "@/components/DatetimeLocalInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, HandHelping, Sparkles } from "lucide-react";
+import { ArrowLeft, HandHelping, Sparkles, AlertTriangle } from "lucide-react";
 import { useNLPrefill } from "@/lib/NLPrefillContext";
 import { MapPicker } from "@/components/MapPicker";
 
@@ -75,12 +75,13 @@ export default function RequestCreatePage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!contextId) { toast({ title: "Missing destination", description: "Go back and select a masjid, event, or errand first.", variant: "destructive" }); return; }
     createReq.mutate(
       { data: { contextType, contextId, ...(prayerName ? { prayerName } : {}), pickupLocation, pickupLat, pickupLng, desiredTime: new Date(desiredTime).toISOString(), notes } },
       {
         onSuccess: () => {
           toast({ title: "Request posted!", description: "Drivers will see your request." });
-          window.history.back();
+          setLocation("/my-rides");
         },
         onError: (err: any) => toast({ title: "Failed", description: err?.error || "Could not post request", variant: "destructive" }),
       }
@@ -99,6 +100,12 @@ export default function RequestCreatePage() {
         <Card className="border-0 ring-1 ring-border/40">
           <CardContent className="p-8">
             <form onSubmit={onSubmit} className="space-y-5">
+              {!contextId && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>No destination matched. Go back and select a masjid, event, or errand from its detail page to link this request.</span>
+                </div>
+              )}
               {aiPrefilled && (
                 <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2.5 text-sm text-primary font-medium">
                   <Sparkles className="w-4 h-4 shrink-0" />
