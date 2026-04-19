@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { importLibrary } from "@/lib/google-maps";
 import { useGetRideLocation, getGetRideLocationQueryKey } from "@/lib/api-client";
 
 interface Props {
@@ -8,64 +7,81 @@ interface Props {
   height?: string;
 }
 
-const carIcon = L.divIcon({
-  className: "",
-  html: `<div style="background:#f97316;color:white;border-radius:9999px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(249,115,22,.5);border:3px solid white;font-size:18px;">🚗</div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
-
-const pinIcon = L.divIcon({
-  className: "",
-  html: `<div style="background:#10b981;color:white;border-radius:9999px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(16,185,129,.4);border:3px solid white;font-size:14px;">📍</div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
+const CAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#f97316"/><text x="18" y="23" text-anchor="middle" font-size="18">🚗</text></svg>`;
 
 export function LiveMap({ rideId, height = "360px" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const carMarkerRef = useRef<L.Marker | null>(null);
-  const polylineRef = useRef<L.Polyline | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const carMarkerRef = useRef<google.maps.Marker | null>(null);
+  const rendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const serviceRef = useRef<google.maps.DirectionsService | null>(null);
 
   const { data: loc } = useGetRideLocation(rideId, {
     query: { refetchInterval: 2000, queryKey: getGetRideLocationQueryKey(rideId) },
   });
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { zoomControl: true, attributionControl: false }).setView([40.72, -74.0], 13);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
-    mapRef.current = map;
+    let cancelled = false;
+    Promise.all([
+      importLibrary("maps"),
+      importLibrary("routes"),
+    ]).then(() => {
+      if (cancelled || !containerRef.current || mapRef.current) return;
 
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      carMarkerRef.current = null;
-      polylineRef.current = null;
-    };
+      const map = new google.maps.Map(containerRef.current, {
+        center: { lat: 40.72, lng: -74.0 },
+        zoom: 13,
+        zoomControl: true,
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: false,
+      });
+      mapRef.current = map;
+      serviceRef.current = new google.maps.DirectionsService();
+      rendererRef.current = new google.maps.DirectionsRenderer({
+        suppressMarkers: true,
+        polylineOptions: { strokeColor: "#f97316", strokeWeight: 5, strokeOpacity: 0.8 },
+      });
+      rendererRef.current.setMap(map);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !loc) return;
+    const service = serviceRef.current;
+    const renderer = rendererRef.current;
+    if (!map || !service || !renderer || !loc) return;
 
-    const start: L.LatLngExpression = [loc.currentLat, loc.currentLng];
-    const dest: L.LatLngExpression = [loc.destinationLat, loc.destinationLng];
+    const origin = new google.maps.LatLng(loc.currentLat, loc.currentLng);
+    const destination = new google.maps.LatLng(loc.destinationLat, loc.destinationLng);
 
-    if (!polylineRef.current) {
-      polylineRef.current = L.polyline([start, dest], { color: "#f97316", weight: 5, opacity: 0.7, dashArray: "8 8" }).addTo(map);
-      L.marker(dest, { icon: pinIcon }).addTo(map).bindPopup("Destination");
-      map.fitBounds(L.latLngBounds([start, dest]).pad(0.3));
+    if (carMarkerRef.current) {
+      carMarkerRef.current.setPosition(origin);
     } else {
-      polylineRef.current.setLatLngs([start, dest]);
+      carMarkerRef.current = new google.maps.Marker({
+        position: origin,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CAR_ICON_SVG)}`,
+          scaledSize: new google.maps.Size(36, 36),
+          anchor: new google.maps.Point(18, 18),
+        },
+      });
     }
 
-    if (!carMarkerRef.current) {
-      carMarkerRef.current = L.marker(start, { icon: carIcon }).addTo(map);
-    } else {
-      carMarkerRef.current.setLatLng(start);
-    }
+    service.route(
+      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (status === "OK" && result) {
+          renderer.setDirections(result);
+          const bounds = new google.maps.LatLngBounds();
+          bounds.extend(origin);
+          bounds.extend(destination);
+          map.fitBounds(bounds, 60);
+        }
+      },
+    );
   }, [loc]);
 
   return (
