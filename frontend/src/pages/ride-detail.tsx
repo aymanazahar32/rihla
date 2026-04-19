@@ -97,7 +97,7 @@ export default function RideDetailPage({ rideId }: { rideId: number }) {
           {!genderBlocked && (
             <div>
               <h2 className="text-lg font-semibold mb-3">Logistics & live tracking</h2>
-              <LiveMap rideId={ride.id} height="380px" />
+              <LiveMap rideId={ride.id} height="380px" isDriver={isDriver} />
             </div>
           )}
         </div>

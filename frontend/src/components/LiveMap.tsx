@@ -16,6 +16,7 @@ interface RideLoc {
 interface Props {
   rideId: number;
   height?: string;
+  isDriver?: boolean;
 }
 
 const CAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#f97316"/><text x="18" y="23" text-anchor="middle" font-size="18">🚗</text></svg>`;
@@ -33,7 +34,7 @@ function toRideLoc(d: Record<string, unknown>): RideLoc | null {
   };
 }
 
-export function LiveMap({ rideId, height = "360px" }: Props) {
+export function LiveMap({ rideId, height = "360px", isDriver = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const carMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -135,7 +136,7 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
           }
         },
       );
-    } else {
+    } else if (!isDriver) {
       // Pickup: try rider's GPS → route driver → rider
       navigator.geolocation?.getCurrentPosition(
         (pos) => {
@@ -161,6 +162,10 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
           map.setZoom(14);
         },
       );
+    } else {
+      // Driver viewing their own ride in scheduled state — just center on their position
+      map.panTo(driverPos);
+      map.setZoom(14);
     }
   }, [loc]);
 

@@ -286,3 +286,9 @@ on conflict do nothing;
 -- delete from rides;
 -- delete from ride_requests;
 -- delete from profiles;
+
+-- ─── Supabase Realtime ─────────────────────────────────────────────────────────
+-- Required for LiveMap to receive live driver location updates via postgres_changes.
+-- Without REPLICA IDENTITY FULL, Realtime only sends the PK — field values are missing.
+alter table rides replica identity full;
+alter publication supabase_realtime add table rides;

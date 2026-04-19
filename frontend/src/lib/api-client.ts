@@ -741,7 +741,7 @@ export const useCreateRide = () => {
         throw { error: "Only verified drivers can offer rides. Complete driver verification in your profile." };
       }
       const d = vars.data as any;
-      const { data, error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("rides")
         .insert({
           context_type: d.contextType,
@@ -758,12 +758,19 @@ export const useCreateRide = () => {
           incentive_label: d.incentiveLabel || null,
           status: "scheduled",
         })
-        .select()
+        .select("id")
         .single();
       if (error) throw { error: error.message };
-      return { id: data.id };
+      const { data, error: fetchErr } = await supabase
+        .from("rides")
+        .select(RIDE_SELECT)
+        .eq("id", inserted.id)
+        .single();
+      if (fetchErr) throw { error: fetchErr.message };
+      return normalizeRide(data);
     },
-    onSuccess: () => {
+    onSuccess: (ride) => {
+      qc.setQueryData(getGetRideQueryKey(ride.id), ride);
       qc.invalidateQueries({ queryKey: ["/rides"] });
       qc.invalidateQueries({ queryKey: getListBookableRidesQueryKey() });
     },
@@ -842,7 +849,9 @@ export const useStartRide = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
-      const { error } = await supabase.from("rides").update({ status: "in_progress" }).eq("id", vars.rideId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw { error: "Not authenticated" };
+      const { error } = await supabase.from("rides").update({ status: "in_progress" }).eq("id", vars.rideId).eq("driver_id", user.id);
       if (error) throw { error: error.message };
     },
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),
@@ -853,7 +862,11 @@ export const useCompleteRide = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { rideId: number }) => {
-      const { error } = await supabase.from("rides").update({ status: "completed", progress_percent: 100 }).eq("id", vars.rideId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw { error: "Not authenticated" };
+      const { error } = await supabase.from("rides")
+        .update({ status: "completed", progress_percent: 100, current_lat: null, current_lng: null })
+        .eq("id", vars.rideId).eq("driver_id", user.id);
       if (error) throw { error: error.message };
     },
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: getGetRideQueryKey(vars.rideId) }),

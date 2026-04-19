@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { importLibrary } from "@/lib/google-maps";
 import { useGetRide, useCompleteRide, useGetMe } from "@/lib/api-client";
 import { useDriverLocation } from "@/hooks/use-driver-location";
-import { MAP_DEFAULT_CENTER } from "@/lib/map-defaults";
+import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from "@/lib/map-defaults";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 
