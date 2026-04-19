@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { supabase } from "@/lib/supabase";
 import {
   useListMasjids, useNearbyMasjids,
-  useMasjidCarpoolCounts, useAladhanTimings, useUpsertMasjid,
+  useAladhanTimings, useUpsertMasjid,
 } from "@/lib/api-client";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
@@ -32,7 +33,6 @@ export default function SalahPage() {
   const masjids = location ? nearbyMasjids : dbMasjids;
   const isLoading = location ? nearbyLoading : dbLoading;
 
-  const { data: counts = {} } = useMasjidCarpoolCounts();
   const { data: timings } = useAladhanTimings(location?.lat, location?.lng);
 
   // Track which card is mid-upsert so we can show a spinner
@@ -55,7 +55,13 @@ export default function SalahPage() {
       return id;
     } catch (err) {
       console.error("[ensureDbId] upsert failed", err);
-      return null;
+      // Fallback: masjid may already be in DB from a prior upsert
+      const { data } = await supabase
+        .from("masjids")
+        .select("id")
+        .eq("google_place_id", m.googlePlaceId)
+        .maybeSingle();
+      return data?.id ?? null;
     } finally {
       setUpsertingId(null);
     }
@@ -64,11 +70,6 @@ export default function SalahPage() {
   const handleCardClick = async (m: any) => {
     const id = await ensureDbId(m);
     if (id) navigate(`/salah/${id}`);
-  };
-
-  const handlePrayerClick = async (m: any, label: string) => {
-    const id = await ensureDbId(m);
-    if (id) navigate(`/match?contextType=masjid&contextId=${id}&prayerName=${label}`);
   };
 
   const handleJumuahClick = async (m: any) => {
@@ -174,35 +175,6 @@ export default function SalahPage() {
                         )}
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                    </div>
-
-                    {/* Prayer grid */}
-                    <div className="grid grid-cols-5 border-t border-border/40">
-                      {PRAYERS.map(({ key, label, timingKey, dbKey, Icon, bg, text, dot }) => {
-                        const prayerRides = (counts as any)[m.id]?.byPrayer?.[label]?.rides ?? 0;
-                        const prayerTime = timings
-                          ? (timings[timingKey as keyof typeof timings] ?? m[dbKey] ?? "—")
-                          : (m[dbKey] ?? "—");
-                        return (
-                          <button
-                            key={key}
-                            className="flex flex-col items-center gap-0.5 py-3 px-1 hover:bg-muted/60 active:bg-muted transition-colors relative group"
-                            onClick={(e) => { e.stopPropagation(); handlePrayerClick(m, label); }}
-                          >
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bg} group-hover:scale-110 transition-transform`}>
-                              <Icon className={`w-3.5 h-3.5 ${text}`} />
-                            </div>
-                            <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
-                            <span className="text-[10px] font-bold tabular-nums">{prayerTime}</span>
-                            {prayerRides > 0 ? (
-                              <span className={`text-[9px] font-bold ${text}`}>{prayerRides} ride{prayerRides !== 1 ? "s" : ""}</span>
-                            ) : (
-                              <span className="text-[9px] text-muted-foreground/50">tap</span>
-                            )}
-                            <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full ${dot} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                          </button>
-                        );
-                      })}
                     </div>
 
                     {/* Jumu'ah */}
