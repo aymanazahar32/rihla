@@ -47,7 +47,7 @@ export function useNLParser() {
     return undefined;
   };
 
-  const handleNLSubmit = async (onSuccess?: (() => void) | unknown) => {
+  const handleNLSubmit = async (onSuccess?: () => void) => {
     recognitionRef.current?.abort();
     setIsListening(false);
     if (!nlText.trim()) return;

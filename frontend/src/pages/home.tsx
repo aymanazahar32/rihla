@@ -87,7 +87,7 @@ export default function HomePage() {
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
             <button
-              onClick={handleNLSubmit}
+              onClick={() => handleNLSubmit()}
               disabled={nlLoading || !nlText.trim()}
               className="shrink-0 p-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
               type="button"
