@@ -6,8 +6,14 @@ import { useNLParser } from "@/lib/useNLParser";
 export function NLCreateButton() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const { nlText, setNlText, nlLoading, nlError, isListening, toggleMic, handleNLSubmit } =
+  const { nlText, setNlText, nlLoading, nlError, setNlError, isListening, toggleMic, handleNLSubmit } =
     useNLParser();
+
+  const closeOverlay = () => {
+    if (isListening) toggleMic();
+    setNlError(null);
+    setIsOpen(false);
+  };
 
   // Hidden on home page — it already has the inline NL bar
   if (location === "/") return null;
@@ -18,7 +24,7 @@ export function NLCreateButton() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors text-sm font-medium"
         >
           <Sparkles className="w-4 h-4" />
           Ask AI
@@ -30,7 +36,7 @@ export function NLCreateButton() {
         <div
           className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsOpen(false);
+            if (e.target === e.currentTarget) closeOverlay();
           }}
         >
           <div className="w-full max-w-md bg-card rounded-2xl shadow-xl ring-1 ring-border/50 p-5 space-y-4">
@@ -38,7 +44,7 @@ export function NLCreateButton() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Where are you headed?</h2>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => closeOverlay()}
                 className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -55,6 +61,7 @@ export function NLCreateButton() {
                 value={nlText}
                 onChange={(e) => {
                   setNlText(e.target.value);
+                  if (nlError) setNlError(null);
                 }}
                 onKeyDown={(e) =>
                   e.key === "Enter" && handleNLSubmit(() => setIsOpen(false))
