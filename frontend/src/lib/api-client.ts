@@ -32,6 +32,8 @@ function normalizeRide(r: any) {
     prayerName: r.prayer_name,
     driverId: r.driver_id,
     departureLocation: r.departure_location,
+    departureLat: r.departure_lat ?? null,
+    departureLng: r.departure_lng ?? null,
     departureTime: r.departure_time,
     seatsTotal: r.seats_total,
     seatsAvailable: r.seats_available,
@@ -107,14 +109,27 @@ function normalizeRideRequest(rr: any) {
     contextType: rr.context_type,
     prayerName: rr.prayer_name,
     pickupLocation: rr.pickup_location,
+    pickupLat: rr.pickup_lat ?? null,
+    pickupLng: rr.pickup_lng ?? null,
     desiredTime: rr.desired_time,
     notes: rr.notes,
+    status: (rr.status ?? "pending") as "pending" | "accepted" | "declined",
+    acceptedBy: rr.accepted_by ?? null,
     requester: rr.requester
       ? {
           id: rr.requester.id,
           name: rr.requester.name,
           gender: rr.requester.gender ?? null,
           idVerified: rr.requester.id_verified,
+        }
+      : undefined,
+    acceptedDriver: rr.accepted_driver
+      ? {
+          id: rr.accepted_driver.id,
+          name: rr.accepted_driver.name,
+          carMake: rr.accepted_driver.car_make,
+          carModel: rr.accepted_driver.car_model,
+          carColor: rr.accepted_driver.car_color,
         }
       : undefined,
   };
@@ -751,6 +766,8 @@ export const useCreateRide = () => {
           prayer_name: d.prayerName || null,
           driver_id: userId,
           departure_location: d.departureLocation,
+          departure_lat: d.departureLat ?? null,
+          departure_lng: d.departureLng ?? null,
           departure_time: d.departureTime,
           seats_total: d.seatsTotal,
           seats_available: d.seatsTotal,
@@ -909,7 +926,7 @@ export const useListRideRequests = (
     queryFn: async () => {
       let query = supabase
         .from("ride_requests")
-        .select("*, requester:profiles!requester_id(id, name, gender, id_verified)")
+        .select("*, requester:profiles!requester_id(id, name, gender, id_verified), accepted_driver:profiles!accepted_by(id, name, car_make, car_model, car_color)")
         .order("desired_time", { ascending: true });
 
       if (params.contextType) query = query.eq("context_type", params.contextType);
@@ -941,6 +958,8 @@ export const useCreateRideRequest = () => {
         prayer_name: d.prayerName || null,
         requester_id: userId,
         pickup_location: d.pickupLocation,
+        pickup_lat: d.pickupLat ?? null,
+        pickup_lng: d.pickupLng ?? null,
         desired_time: d.desiredTime,
         notes: d.notes || null,
       });
@@ -957,10 +976,68 @@ export const useGetMyRequests = () =>
       const userId = await getCurrentUserId();
       const { data, error } = await supabase
         .from("ride_requests")
-        .select("*")
+        .select("*, accepted_driver:profiles!accepted_by(id, name, car_make, car_model, car_color)")
         .eq("requester_id", userId)
         .order("desired_time", { ascending: true });
       if (error) throw error;
       return data.map(normalizeRideRequest);
     },
   });
+
+export const useAcceptRideRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { requestId: number }) => {
+      const userId = await getCurrentUserId();
+      const { error } = await supabase
+        .from("ride_requests")
+        .update({ status: "accepted", accepted_by: userId })
+        .eq("id", vars.requestId)
+        .eq("status", "pending");
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/ride-requests"] }),
+  });
+};
+
+export const useGetMyMatches = () =>
+  useQuery({
+    queryKey: ["/ride-matches/my"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("ride_matches")
+        .select(`
+          id, score, status, created_at,
+          ride:rides!ride_id(id, departure_location, departure_lat, departure_lng, departure_time, seats_available, seats_total, context_type, prayer_name, driver_id,
+            driver:profiles!driver_id(id, name, car_make, car_model, car_color, gender),
+            event:events(id, name), masjid:masjids(id, name), errand:errands(id, title)
+          ),
+          request:ride_requests!request_id(id, pickup_location, pickup_lat, pickup_lng, desired_time, notes, requester_id,
+            requester:profiles!requester_id(id, name, gender)
+          )
+        `)
+        .eq("status", "pending")
+        .order("score", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).filter((m: any) =>
+        m.ride?.driver_id === user.id || m.request?.requester_id === user.id
+      );
+    },
+    refetchInterval: 5000,
+  });
+
+export const useUpdateMatchStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { matchId: number; status: "accepted" | "dismissed" }) => {
+      const { error } = await supabase
+        .from("ride_matches")
+        .update({ status: vars.status })
+        .eq("id", vars.matchId);
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/ride-matches/my"] }),
+  });
+};

@@ -1,19 +1,65 @@
 import { Link, useLocation } from "wouter";
+import { useEffect, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useMode } from "@/lib/ModeContext";
 import { Calendar, Moon, ShoppingBag, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useListMasjids } from "@/lib/api-client";
+import { useListMasjids, useGetMe, useGetMyRequests, useGetMyRides } from "@/lib/api-client";
 import { HomeMap } from "@/components/HomeMap";
+import { MatchBanner } from "@/components/MatchBanner";
+import { PassiveTrackingView } from "@/components/PassiveTrackingView";
+import { RideRatingModal } from "@/components/RideRatingModal";
+import { useRideNotifications, requestNotificationPermission } from "@/lib/useRideNotifications";
 
 export default function HomePage() {
   const { mode, setMode } = useMode();
   const { data: masjids = [], isLoading: masjidsLoading } = useListMasjids();
+  const { data: me } = useGetMe();
+  const { data: myRequests = [] } = useGetMyRequests();
+  const { data: myRides } = useGetMyRides();
   const [, setLocation] = useLocation();
+  const [ratingRide, setRatingRide] = useState<any>(null);
+  const prevStatusRef = useRef<Record<string, string>>({});
+
+  const hasPendingRequest = myRequests.some((r: any) => r.status === "pending");
+  const hasActiveRide = (myRides?.drivingRides ?? []).some((r: any) => r.status === "scheduled" || r.status === "in_progress");
+  const inProgressRide = (myRides?.passengerRides ?? []).find((r: any) => r.status === "in_progress") ?? null;
+  const showMatchBanner = !!me && !inProgressRide && (hasPendingRequest || (me.userType === "driver" && hasActiveRide));
+
+  // Request notification permission once user is logged in
+  useEffect(() => {
+    if (me) requestNotificationPermission();
+  }, [!!me]);
+
+  // Live notifications: matches, driver arrival, chat messages
+  useRideNotifications({
+    userId: me?.id,
+    rideId: inProgressRide?.id ?? null,
+    userName: me?.name,
+  });
+
+  // Detect when a passenger ride flips to "completed" → show rating modal
+  useEffect(() => {
+    const rides: any[] = myRides?.passengerRides ?? [];
+    for (const ride of rides) {
+      const prev = prevStatusRef.current[ride.id];
+      if (prev && prev !== "completed" && ride.status === "completed") {
+        setRatingRide(ride);
+      }
+      prevStatusRef.current[ride.id] = ride.status;
+    }
+  }, [myRides?.passengerRides]);
 
   return (
     <Layout>
+      {ratingRide && me && (
+        <RideRatingModal
+          ride={ratingRide}
+          currentUserId={me.id}
+          onDone={() => setRatingRide(null)}
+        />
+      )}
       <div className="flex flex-col h-full w-full gap-4">
         {/* Top Toggle */}
         <div className="flex justify-center">
@@ -39,8 +85,26 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Passive tracking — shown when rider has an in-progress ride */}
+        {inProgressRide && (
+          <div className="flex-shrink-0">
+            <PassiveTrackingView
+              ride={inProgressRide}
+              currentUserId={me?.id}
+              currentUserName={me?.name}
+            />
+          </div>
+        )}
+
+        {/* Match Banner — shown when user has pending requests or active rides */}
+        {showMatchBanner && (
+          <div className="flex-shrink-0">
+            <MatchBanner />
+          </div>
+        )}
+
         {/* Community Map — scales with viewport */}
-        <div className="rounded-2xl overflow-hidden ring-1 ring-border/40 flex-shrink-0" style={{ height: "clamp(300px, 45vh, 600px)" }}>
+        <div className="rounded-2xl overflow-hidden ring-1 ring-border/40 flex-shrink-0" style={{ height: showMatchBanner ? "clamp(180px, 28vh, 360px)" : "clamp(300px, 45vh, 600px)" }}>
           {masjidsLoading ? (
             <div className="w-full h-full bg-muted animate-pulse" />
           ) : (

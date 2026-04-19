@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, CarFront } from "lucide-react";
+import { MapPicker } from "@/components/MapPicker";
 
 export default function RideCreatePage() {
   const [, setLocation] = useLocation();
@@ -24,6 +25,8 @@ export default function RideCreatePage() {
   const prayerName = params.get("prayerName") || undefined;
 
   const [departureLocation, setDepartureLocation] = useState("");
+  const [departureLat, setDepartureLat] = useState<number | null>(null);
+  const [departureLng, setDepartureLng] = useState<number | null>(null);
   const [departureTime, setDepartureTime] = useState("");
   const [seatsTotal, setSeatsTotal] = useState(3);
   const [notes, setNotes] = useState("");
@@ -53,7 +56,7 @@ export default function RideCreatePage() {
     e.preventDefault();
     if (!contextId) { toast({ title: "Missing context", variant: "destructive" }); return; }
     createRide.mutate(
-      { data: { contextType, contextId, ...(prayerName ? { prayerName } : {}), departureLocation, departureTime: new Date(departureTime).toISOString(), seatsTotal, notes } },
+      { data: { contextType, contextId, ...(prayerName ? { prayerName } : {}), departureLocation, departureLat, departureLng, departureTime: new Date(departureTime).toISOString(), seatsTotal, notes } },
       {
         onSuccess: (ride) => {
           toast({ title: "Ride created!", description: "Your ride is now visible to riders." });
@@ -107,7 +110,15 @@ export default function RideCreatePage() {
             <form onSubmit={onSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label>Departure location</Label>
-                <Input value={departureLocation} onChange={(e) => setDepartureLocation(e.target.value)} placeholder="e.g. Main campus, Lot B" required />
+                <MapPicker
+                  value={departureLocation}
+                  onChange={(address, lat, lng) => {
+                    setDepartureLocation(address);
+                    setDepartureLat(lat);
+                    setDepartureLng(lng);
+                  }}
+                  height="220px"
+                />
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
