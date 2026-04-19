@@ -3,6 +3,7 @@ import { useGetErrand } from "@/lib/api-client";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { errandCategoryClass } from "@/lib/errand-category-styles";
 import { ArrowLeft, MapPin, Clock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { RidesAndRequests } from "@/components/RidesAndRequests";
@@ -15,9 +16,16 @@ export default function ErrandDetailPage({ errandId }: { errandId: number }) {
 
   return (
     <Layout>
-      <Link href="/errands"><Button variant="ghost" size="sm" className="mb-4 -ml-2"><ArrowLeft className="w-4 h-4 mr-1" /> Back to errands</Button></Link>
+      <div className="mb-4 w-full flex justify-start">
+        <Button variant="ghost" size="sm" className="-ml-2 shrink-0" asChild>
+          <Link href="/errands" className="inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" />
+            Back to errands
+          </Link>
+        </Button>
+      </div>
       <div className="mb-8">
-        <Badge variant="secondary" className="mb-3">{errand.category}</Badge>
+        <Badge className={`mb-3 font-medium ${errandCategoryClass(errand.category)}`}>{errand.category}</Badge>
         <h1 className="text-4xl font-bold tracking-tight">{errand.title}</h1>
         <p className="text-muted-foreground mt-2 max-w-2xl">{errand.description}</p>
         <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-muted-foreground">

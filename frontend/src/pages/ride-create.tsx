@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useCreateRide, useGetMe, canUserOfferRides } from "@/lib/api-client";
+import { useCreateRide, useGetMe, useGetMasjid, canUserOfferRides } from "@/lib/api-client";
+import { masjidPrayerField, parseMasjidTimeToDate, toDatetimeLocalValue } from "@/lib/prayer-time";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,27 @@ export default function RideCreatePage() {
   const [departureTime, setDepartureTime] = useState("");
   const [seatsTotal, setSeatsTotal] = useState(3);
   const [notes, setNotes] = useState("");
+  const prefilledPrayerTime = useRef(false);
+
+  const { data: masjid } = useGetMasjid(contextId, {
+    query: { enabled: contextType === "masjid" && contextId > 0 },
+  });
+
+  useEffect(() => {
+    prefilledPrayerTime.current = false;
+  }, [contextType, contextId, prayerName]);
+
+  useEffect(() => {
+    if (contextType !== "masjid" || !masjid || !prayerName || prefilledPrayerTime.current) return;
+    const field = masjidPrayerField(prayerName);
+    if (!field) return;
+    const raw = (masjid as Record<string, string | undefined>)[field];
+    if (!raw) return;
+    const parsed = parseMasjidTimeToDate(raw);
+    if (!parsed) return;
+    setDepartureTime(toDatetimeLocalValue(parsed));
+    prefilledPrayerTime.current = true;
+  }, [contextType, masjid, prayerName]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +113,11 @@ export default function RideCreatePage() {
                 <div className="space-y-2">
                   <Label>Departure time</Label>
                   <DatetimeLocalInput value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} required />
+                  {contextType === "masjid" && prayerName && masjid && (
+                    <p className="text-xs text-muted-foreground">
+                      Defaults to today&apos;s <span className="font-medium text-foreground">{prayerName}</span> iqama time from the masjid timetable — change if you leave earlier or another day.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Seats available</Label>

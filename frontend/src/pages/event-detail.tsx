@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { useGetEvent, useListRides, useGetMe } from "@/lib/api-client";
+import { useGetEvent, useListRides, useGetMe, isOrganizationUser } from "@/lib/api-client";
 import { maySeePersonByGender, displayNameForGenderPolicy } from "@/lib/gender-visibility";
 import { Layout } from "@/components/Layout";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,23 @@ export default function EventDetailPage({ eventId }: { eventId: number }) {
 
   return (
     <Layout>
-      <Link href="/events"><Button variant="ghost" size="sm" className="mb-4 -ml-2"><ArrowLeft className="w-4 h-4 mr-1" /> Back to events</Button></Link>
+      <div className="mb-4 w-full flex justify-start">
+        <Button variant="ghost" size="sm" className="-ml-2 shrink-0" asChild>
+          <Link href="/events" className="inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" />
+            Back to events
+          </Link>
+        </Button>
+      </div>
+      {isOrganizationUser(me) && (
+        <div className="mb-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span className="text-muted-foreground">Organizing more on campus? Add another listing for the community.</span>
+          <Button size="sm" className="rounded-full shrink-0" asChild>
+            <Link href="/events/new">Create event</Link>
+          </Button>
+        </div>
+      )}
+
       <div className="mb-8">
         <Badge className="mb-3 bg-primary/10 text-primary border-0">{event.category}</Badge>
         <h1 className="text-4xl font-bold tracking-tight">{event.name}</h1>

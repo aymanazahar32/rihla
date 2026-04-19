@@ -7,8 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, MapPin, Clock, ArrowRight, Search } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { errandCategoryClass } from "@/lib/errand-category-styles";
 
-const CATEGORIES = ["all", "Shopping", "Groceries", "Travel", "Errands"];
+const CATEGORIES = ["all", "Shopping", "Groceries", "Travel", "Errands"] as const;
+
+const FILTER_ACTIVE: Record<string, string> = {
+  Shopping: "bg-sky-100 text-sky-900 border-sky-300",
+  Groceries: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  Travel: "bg-violet-100 text-violet-900 border-violet-300",
+  Errands: "bg-amber-100 text-amber-950 border-amber-300",
+};
 
 export default function ErrandsPage() {
   const [category, setCategory] = useState("all");
@@ -31,11 +39,30 @@ export default function ErrandsPage() {
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search errands..." className="pl-9 rounded-full" />
         </div>
         <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
-            <button key={c} onClick={() => setCategory(c)} className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${category === c ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/40"}`}>
-              {c === "all" ? "All" : c}
-            </button>
-          ))}
+          {CATEGORIES.map((c) => {
+            const selected = category === c;
+            const base = "px-4 py-1.5 rounded-full text-sm font-medium border transition-colors";
+            const inactive = `${base} bg-background border-border hover:border-primary/40`;
+            if (!selected) {
+              return (
+                <button key={c} type="button" onClick={() => setCategory(c)} className={inactive}>
+                  {c === "all" ? "All" : c}
+                </button>
+              );
+            }
+            if (c === "all") {
+              return (
+                <button key={c} type="button" onClick={() => setCategory(c)} className={`${base} bg-primary text-primary-foreground border-primary`}>
+                  All
+                </button>
+              );
+            }
+            return (
+              <button key={c} type="button" onClick={() => setCategory(c)} className={`${base} ${FILTER_ACTIVE[c] ?? "bg-primary text-primary-foreground border-primary"}`}>
+                {c}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -52,7 +79,7 @@ export default function ErrandsPage() {
               <Card className="hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border-0 ring-1 ring-border/50 h-full">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-3">
-                    <Badge variant="secondary" className="border-0">{e.category}</Badge>
+                    <Badge className={`border-0 font-medium ${errandCategoryClass(e.category)}`}>{e.category}</Badge>
                     <ArrowRight className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <h3 className="text-lg font-bold leading-tight mb-2">{e.title}</h3>

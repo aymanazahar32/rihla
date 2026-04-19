@@ -220,6 +220,11 @@ export function canUserOfferRides(user: { userType: string | null; idVerified: b
   return user?.userType === "driver" && !!user.idVerified && !!user.driverHistoryChecked;
 }
 
+/** Organization accounts can create campus/community events. */
+export function isOrganizationUser(user: { userType: string | null } | undefined | null) {
+  return user?.userType === "organization";
+}
+
 // ── Profile setup ─────────────────────────────────────────────────────────────
 
 export const useSetupRiderProfile = () =>

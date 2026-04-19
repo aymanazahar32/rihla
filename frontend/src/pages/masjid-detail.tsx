@@ -24,7 +24,14 @@ export default function MasjidDetailPage({ masjidId }: { masjidId: number }) {
 
   return (
     <Layout>
-      <Link href="/salah"><Button variant="ghost" size="sm" className="mb-4 -ml-2"><ArrowLeft className="w-4 h-4 mr-1" /> Back to masjids</Button></Link>
+      <div className="mb-4 w-full flex justify-start">
+        <Button variant="ghost" size="sm" className="-ml-2 shrink-0" asChild>
+          <Link href="/salah" className="inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" />
+            Back to masjids
+          </Link>
+        </Button>
+      </div>
 
       <div className="mb-6">
         <h1 className="text-4xl font-bold tracking-tight">{masjid.name}</h1>

@@ -8,6 +8,7 @@ import {
   useVerifyId,
   useRunDriverCheck,
   useSaveDriverProfileDetails,
+  useSetupOrgProfile,
   canUserOfferRides,
 } from "@/lib/api-client";
 import { Layout } from "@/components/Layout";
@@ -29,7 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
-import { Car, ShieldCheck, FileSearch, Upload, Loader2, CheckCircle2, CalendarPlus } from "lucide-react";
+import { Car, ShieldCheck, FileSearch, Upload, Loader2, CheckCircle2, CalendarPlus, Building2 } from "lucide-react";
 
 const STUDENT_ID_DIGITS = 10;
 
@@ -56,12 +57,15 @@ export default function ProfilePage() {
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [checkBusy, setCheckBusy] = useState(false);
   const [driverConfirmOpen, setDriverConfirmOpen] = useState(false);
+  const [orgSwitchName, setOrgSwitchName] = useState("");
+  const [orgSwitchBusy, setOrgSwitchBusy] = useState(false);
 
   const updateProfile = useUpdateMyProfile();
   const setupDriver = useSetupDriverProfile();
   const verifyId = useVerifyId();
   const driverCheck = useRunDriverCheck();
   const saveDriverDetails = useSaveDriverProfileDetails();
+  const setupOrg = useSetupOrgProfile();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
 
@@ -336,6 +340,50 @@ export default function ProfilePage() {
             </Button>
           </CardContent>
         </Card>
+
+        {isRider && (
+          <Card className="border-0 ring-1 ring-amber-200/80 bg-amber-50/40 dark:bg-amber-950/15">
+            <CardContent className="p-8 space-y-4">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                <h2 className="text-lg font-semibold">Post events as an organization</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                MSA and campus groups can publish event pages so members can coordinate rides. This switches your account from rider to organization (you can still book seats; to drive, you would set up driver verification again later).
+              </p>
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="orgSwitch">Organization name</Label>
+                <Input
+                  id="orgSwitch"
+                  value={orgSwitchName}
+                  onChange={(e) => setOrgSwitchName(e.target.value)}
+                  placeholder="e.g. UTA Muslim Students Association"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="rounded-full"
+                disabled={orgSwitchBusy || !orgSwitchName.trim()}
+                onClick={async () => {
+                  setOrgSwitchBusy(true);
+                  try {
+                    await setupOrg.mutateAsync({ data: { organizationName: orgSwitchName.trim() } });
+                    refresh();
+                    toast({ title: "You’re now an organization", description: "Open Events to create your first listing." });
+                  } catch (e: any) {
+                    toast({ title: "Could not switch", description: e?.error, variant: "destructive" });
+                  } finally {
+                    setOrgSwitchBusy(false);
+                  }
+                }}
+              >
+                {orgSwitchBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Switch to organization account
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {isRider && (
           <Card className="border-0 ring-1 ring-primary/25 bg-primary/5">
