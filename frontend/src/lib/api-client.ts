@@ -572,19 +572,25 @@ export const useMasjidCarpoolCounts = () =>
     queryKey: ["/masjids/counts"],
     queryFn: async () => {
       const [{ data: rides }, { data: requests }] = await Promise.all([
-        supabase.from("rides").select("masjid_id").eq("context_type", "masjid").eq("status", "scheduled").gt("seats_available", 0),
-        supabase.from("ride_requests").select("masjid_id").eq("context_type", "masjid")
+        supabase.from("rides").select("masjid_id, prayer_name").eq("context_type", "masjid").eq("status", "scheduled").gt("seats_available", 0),
+        supabase.from("ride_requests").select("masjid_id, prayer_name").eq("context_type", "masjid").eq("status", "pending"),
       ]);
-      const counts: Record<number, { rides: number; requests: number }> = {};
+      const counts: Record<number, { rides: number; requests: number; byPrayer: Record<string, { rides: number; requests: number }> }> = {};
+      const ensure = (id: number, prayer?: string | null) => {
+        if (!counts[id]) counts[id] = { rides: 0, requests: 0, byPrayer: {} };
+        if (prayer && !counts[id].byPrayer[prayer]) counts[id].byPrayer[prayer] = { rides: 0, requests: 0 };
+      };
       rides?.forEach(r => {
         if (!r.masjid_id) return;
-        if (!counts[r.masjid_id]) counts[r.masjid_id] = { rides: 0, requests: 0 };
+        ensure(r.masjid_id, r.prayer_name);
         counts[r.masjid_id].rides++;
+        if (r.prayer_name) counts[r.masjid_id].byPrayer[r.prayer_name].rides++;
       });
       requests?.forEach(r => {
         if (!r.masjid_id) return;
-        if (!counts[r.masjid_id]) counts[r.masjid_id] = { rides: 0, requests: 0 };
+        ensure(r.masjid_id, r.prayer_name);
         counts[r.masjid_id].requests++;
+        if (r.prayer_name) counts[r.masjid_id].byPrayer[r.prayer_name].requests++;
       });
       return counts;
     },
