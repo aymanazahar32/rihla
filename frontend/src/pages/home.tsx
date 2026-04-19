@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Moon, ShoppingBag, MapPin, Sparkles, Mic, MicOff, ArrowRight } from "lucide-react";
@@ -10,6 +10,7 @@ import { PassiveTrackingView } from "@/components/PassiveTrackingView";
 import { RideRatingModal } from "@/components/RideRatingModal";
 import { useRideNotifications, requestNotificationPermission } from "@/lib/useRideNotifications";
 import { useNLParser } from "@/lib/useNLParser";
+import { useGeolocation } from "@/hooks/useGeolocation";
 
 export default function HomePage() {
   const { data: masjids = [], isLoading: masjidsLoading } = useListMasjids();
@@ -19,6 +20,7 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
   const [ratingRide, setRatingRide] = useState<any>(null);
   const prevStatusRef = useRef<Record<string, string>>({});
+  const { location: userLocation } = useGeolocation();
 
   const { nlText, setNlText, nlLoading, nlError, setNlError, isListening, toggleMic, handleNLSubmit } = useNLParser();
 
@@ -27,19 +29,23 @@ export default function HomePage() {
   const inProgressRide = (myRides?.passengerRides ?? []).find((r: any) => r.status === "in_progress") ?? null;
   const showMatchBanner = !!me && !inProgressRide && (hasPendingRequest || (me.userType === "driver" && hasActiveRide));
 
-  // Request notification permission once user is logged in
+  const displayName = me?.name ?? "Guest";
+
+  const handleMasjidClick = useCallback(
+    (id: number) => setLocation(`/salah/${id}`),
+    [setLocation]
+  );
+
   useEffect(() => {
     if (me) requestNotificationPermission();
   }, [!!me]);
 
-  // Live notifications: matches, driver arrival, chat messages
   useRideNotifications({
     userId: me?.id,
     rideId: inProgressRide?.id ?? null,
     userName: me?.name,
   });
 
-  // Detect when a passenger ride flips to "completed" → show rating modal
   useEffect(() => {
     const rides: any[] = myRides?.passengerRides ?? [];
     for (const ride of rides) {
@@ -61,6 +67,13 @@ export default function HomePage() {
         />
       )}
       <div className="flex flex-col h-full w-full gap-4">
+
+        {/* Greeting */}
+        <div className="flex-shrink-0">
+          <h1 className="text-2xl font-bold">Assalamualaikum, {displayName}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Are you ready for your journey?</p>
+        </div>
+
         {/* NL Input Bar */}
         <div className="flex-shrink-0 space-y-1.5">
           <div className="flex items-center gap-2 rounded-2xl bg-card ring-1 ring-border/50 px-4 py-3 shadow-sm focus-within:ring-primary/50 transition-shadow">
@@ -113,27 +126,14 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Match Banner — shown when user has pending requests or active rides */}
+        {/* Match Banner */}
         {showMatchBanner && (
           <div className="flex-shrink-0">
             <MatchBanner />
           </div>
         )}
 
-        {/* Community Map — scales with viewport */}
-        <div className="rounded-2xl overflow-hidden ring-1 ring-border/40 flex-shrink-0" style={{ height: showMatchBanner ? "clamp(180px, 28vh, 360px)" : "clamp(300px, 45vh, 600px)" }}>
-          {masjidsLoading ? (
-            <div className="w-full h-full bg-muted animate-pulse" />
-          ) : (
-            <HomeMap
-              masjids={masjids}
-              onMasjidClick={(id) => setLocation(`/salah/${id}`)}
-              height="100%"
-            />
-          )}
-        </div>
-
-        {/* 4 Main Blocks — grow to fill remaining height */}
+        {/* 4 Main Blocks */}
         <div className="flex-1 flex flex-col gap-3 min-h-0">
 
           {/* Salah Block */}
@@ -200,8 +200,22 @@ export default function HomePage() {
               </CardContent>
             </Card>
           </button>
-
         </div>
+
+        {/* Community Map — bottom of page */}
+        <div className="rounded-2xl overflow-hidden ring-1 ring-border/40 flex-shrink-0" style={{ height: "clamp(300px, 45vh, 600px)" }}>
+          {masjidsLoading ? (
+            <div className="w-full h-full bg-muted animate-pulse" />
+          ) : (
+            <HomeMap
+              masjids={masjids}
+              onMasjidClick={handleMasjidClick}
+              userLocation={userLocation}
+              height="100%"
+            />
+          )}
+        </div>
+
       </div>
     </Layout>
   );
