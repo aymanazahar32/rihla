@@ -11,6 +11,7 @@ export function NLCreateButton() {
 
   const closeOverlay = () => {
     if (isListening) toggleMic();
+    setNlText("");
     setNlError(null);
     setIsOpen(false);
   };
