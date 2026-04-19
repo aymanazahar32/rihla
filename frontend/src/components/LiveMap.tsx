@@ -21,7 +21,7 @@ interface Props {
 const CAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#f97316"/><text x="18" y="23" text-anchor="middle" font-size="18">🚗</text></svg>`;
 
 function toRideLoc(d: Record<string, unknown>): RideLoc | null {
-  if (!d.current_lat) return null;
+  if (d.current_lat == null || d.current_lng == null) return null;
   return {
     status: d.status as string,
     currentLat: d.current_lat as number,
@@ -40,6 +40,7 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
   const rendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const serviceRef = useRef<google.maps.DirectionsService | null>(null);
   const lastRouteRef = useRef(0);
+  const prevStatusRef = useRef<string | null>(null);
   const [loc, setLoc] = useState<RideLoc | null>(null);
   const [pickupEta, setPickupEta] = useState<string | null>(null);
 
@@ -47,23 +48,17 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
   useEffect(() => {
     const cols = "status,current_lat,current_lng,destination_lat,destination_lng,eta_minutes,progress_percent";
 
-    supabase
-      .from("rides")
-      .select(cols)
-      .eq("id", rideId)
-      .single()
-      .then(({ data }) => { if (data) setLoc(toRideLoc(data as Record<string, unknown>)); });
-
     const channel = supabase
       .channel(`ride-loc-${rideId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideId}` },
-        (payload) => {
-          setLoc(toRideLoc(payload.new as Record<string, unknown>));
-        },
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${rideId}` },
+        (payload) => { setLoc(toRideLoc(payload.new as Record<string, unknown>)); },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          supabase.from("rides").select(cols).eq("id", rideId).single()
+            .then(({ data }) => { if (data) setLoc(toRideLoc(data as Record<string, unknown>)); });
+        }
+      });
 
     return () => { void supabase.removeChannel(channel); };
   }, [rideId]);
@@ -114,6 +109,11 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
           anchor: new google.maps.Point(18, 18),
         },
       });
+    }
+
+    if (loc.status !== prevStatusRef.current) {
+      lastRouteRef.current = 0;
+      prevStatusRef.current = loc.status;
     }
 
     const now = Date.now();
@@ -181,7 +181,7 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
         </div>
       )}
 
-      {loc && loc.status !== "in_progress" && (
+      {loc && loc.status === "scheduled" && (
         <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-[1000]">
           <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-xs font-semibold">Driver on the way</span>
@@ -191,6 +191,13 @@ export function LiveMap({ rideId, height = "360px" }: Props) {
               <span className="text-xs font-medium">{pickupEta} away</span>
             </>
           )}
+        </div>
+      )}
+
+      {loc?.status === "completed" && (
+        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 z-[1000]">
+          <div className="w-2 h-2 rounded-full bg-gray-400" />
+          <span className="text-xs font-semibold">Ride completed</span>
         </div>
       )}
 
