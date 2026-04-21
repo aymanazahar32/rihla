@@ -3,7 +3,11 @@ import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CarFront, LogOut, Moon, Calendar, ShoppingBag, MapPin, ShieldCheck, Home, User, LogIn } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CarFront, LogOut, Moon, Calendar, ShoppingBag, MapPin, ShieldCheck, Home, User, LogIn, Users, Car, CalendarPlus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NLCreateButton } from "@/components/NLCreateButton";
 
@@ -93,16 +97,53 @@ export function Layout({ children }: { children: ReactNode }) {
                       {userTypeLabel}
                     </span>
                   </div>
-                  {user.profileCompleted && (
-                    <Link href="/profile">
-                      <Button variant="ghost" size="icon" className="rounded-full" title="Profile">
-                        <User className="w-4 h-4" />
-                      </Button>
-                    </Link>
+                  {!user.profileCompleted && (
+                    <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-muted-foreground hover:text-destructive" title="Log out">
+                      <LogOut className="w-4 h-4" />
+                    </Button>
                   )}
-                  <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-muted-foreground hover:text-destructive">
-                    <LogOut className="w-4 h-4" />
-                  </Button>
+                  {user.profileCompleted && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="rounded-full" title="Account">
+                          <User className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem asChild>
+                          <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                            <User className="w-4 h-4" /> Profile &amp; Account
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/friends" className="flex items-center gap-2 cursor-pointer">
+                            <Users className="w-4 h-4" /> Friends
+                          </Link>
+                        </DropdownMenuItem>
+                        {user.userType !== "driver" && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/become-driver" className="flex items-center gap-2 cursor-pointer">
+                              <Car className="w-4 h-4" /> Become a Driver
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {user.userType === "organization" && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/events/new" className="flex items-center gap-2 cursor-pointer">
+                              <CalendarPlus className="w-4 h-4" /> Post an Event
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer"
+                          onClick={handleLogout}
+                        >
+                          <LogOut className="w-4 h-4" /> Log out
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               </>
             ) : (
@@ -147,7 +188,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <NLCreateButton />
 
-      {!isLoading && !user && (
+      {!user && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-40">
           <div className="flex justify-around p-2">
             {BROWSE_NAV.map((item) => {
@@ -167,7 +208,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </nav>
       )}
-      {!isLoading && user && (
+      {user && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-40">
           <div className="flex justify-around p-2">
             {NAV.map((item) => {
