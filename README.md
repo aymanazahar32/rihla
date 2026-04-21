@@ -2,7 +2,7 @@
 
 A carpool platform built for the Muslim community. Rihla connects riders and drivers for trips to masjids, MSA events, and community errands — think Uber, but built around the ummah.
 
-Built for a Muslim hackathon by **Ayman Azahar** and **Omar Medhat**.
+Built for a Muslim hackathon by *UTA Students*.
 
 ---
 
