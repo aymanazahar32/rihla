@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGetMe } from "@/lib/api-client";
 import { useMatchingEngine } from "@/lib/useMatchingEngine";
 import { useLocation } from "wouter";
-import { useEffect, type ReactNode, Component, type ErrorInfo } from "react";
+import { useEffect, type ReactNode, Component, type ErrorInfo, lazy, Suspense } from "react";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -24,28 +24,31 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     return this.props.children;
   }
 }
+
 import { Layout } from "@/components/Layout";
 import { ModeProvider } from "@/lib/ModeContext";
 import { NLPrefillProvider } from "@/lib/NLPrefillContext";
 
-import NotFound from "@/pages/not-found";
-import AuthPage from "@/pages/auth";
-import ProfileSetupPage from "@/pages/profile-setup";
-import HomePage from "@/pages/home";
-import ProfilePage from "@/pages/profile";
-import EventsPage from "@/pages/events";
-import EventDetailPage from "@/pages/event-detail";
-import EventCreatePage from "@/pages/event-create";
-import SalahPage from "@/pages/salah";
-import MasjidDetailPage from "@/pages/masjid-detail";
-import ErrandsPage from "@/pages/errands";
-import ErrandDetailPage from "@/pages/errand-detail";
-import RideCreatePage from "@/pages/ride-create";
-import RideDetailPage from "@/pages/ride-detail";
-import DriverModePage from "@/pages/driver-mode";
-import RequestCreatePage from "@/pages/request-create";
-import MyRidesPage from "@/pages/my-rides";
-import MatchResultsPage from "@/pages/match-results";
+const NotFound = lazy(() => import("@/pages/not-found"));
+const AuthPage = lazy(() => import("@/pages/auth"));
+const ProfileSetupPage = lazy(() => import("@/pages/profile-setup"));
+const HomePage = lazy(() => import("@/pages/home"));
+const ProfilePage = lazy(() => import("@/pages/profile"));
+const EventsPage = lazy(() => import("@/pages/events"));
+const EventDetailPage = lazy(() => import("@/pages/event-detail"));
+const EventCreatePage = lazy(() => import("@/pages/event-create"));
+const SalahPage = lazy(() => import("@/pages/salah"));
+const MasjidDetailPage = lazy(() => import("@/pages/masjid-detail"));
+const ErrandsPage = lazy(() => import("@/pages/errands"));
+const ErrandDetailPage = lazy(() => import("@/pages/errand-detail"));
+const RideCreatePage = lazy(() => import("@/pages/ride-create"));
+const RideDetailPage = lazy(() => import("@/pages/ride-detail"));
+const DriverModePage = lazy(() => import("@/pages/driver-mode"));
+const RequestCreatePage = lazy(() => import("@/pages/request-create"));
+const MyRidesPage = lazy(() => import("@/pages/my-rides"));
+const MatchResultsPage = lazy(() => import("@/pages/match-results"));
+const FriendsPage = lazy(() => import("@/pages/friends"));
+const BecomeDriverPage = lazy(() => import("@/pages/become-driver"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -146,6 +149,8 @@ function Router() {
       </Route>
       <Route path="/profile">{() => <SessionGuard><CompleteProfileGuard><ProfilePage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route path="/my-rides">{() => <SessionGuard><CompleteProfileGuard><MyRidesPage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/friends">{() => <SessionGuard><CompleteProfileGuard><FriendsPage /></CompleteProfileGuard></SessionGuard>}</Route>
+      <Route path="/become-driver">{() => <SessionGuard><CompleteProfileGuard><BecomeDriverPage /></CompleteProfileGuard></SessionGuard>}</Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -157,7 +162,36 @@ function MatchingEngineMount() {
   return null;
 }
 
+function usePrefetchPages() {
+  useEffect(() => {
+    const pages = [
+      () => import("@/pages/auth"),
+      () => import("@/pages/salah"),
+      () => import("@/pages/events"),
+      () => import("@/pages/errands"),
+      () => import("@/pages/my-rides"),
+      () => import("@/pages/profile"),
+      () => import("@/pages/ride-create"),
+      () => import("@/pages/request-create"),
+      () => import("@/pages/ride-detail"),
+      () => import("@/pages/event-detail"),
+      () => import("@/pages/errand-detail"),
+      () => import("@/pages/match-results"),
+      () => import("@/pages/profile-setup"),
+      () => import("@/pages/driver-mode"),
+      () => import("@/pages/event-create"),
+      () => import("@/pages/masjid-detail"),
+      () => import("@/pages/not-found"),
+      () => import("@/pages/friends"),
+    ];
+    let i = 0;
+    const next = () => { if (i < pages.length) pages[i++]().finally(next); };
+    next();
+  }, []);
+}
+
 function App() {
+  usePrefetchPages();
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -165,7 +199,9 @@ function App() {
           <NLPrefillProvider>
             <ModeProvider>
               <MatchingEngineMount />
-              <Router />
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin" /></div>}>
+                <Router />
+              </Suspense>
               <Toaster />
             </ModeProvider>
           </NLPrefillProvider>

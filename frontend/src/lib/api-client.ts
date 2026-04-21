@@ -1157,3 +1157,151 @@ export const useUpdateMatchStatus = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/ride-matches/my"] }),
   });
 };
+
+// ── Friends ───────────────────────────────────────────────────────────────────
+
+function normalizeFriendship(f: any, myId: string) {
+  const other = f.requester_id === myId ? f.addressee : f.requester;
+  return {
+    id: f.id as number,
+    status: f.status as "pending" | "accepted",
+    isRequester: f.requester_id === myId,
+    createdAt: f.created_at as string,
+    friend: { id: other?.id, name: other?.name ?? "Unknown", university: other?.university ?? null } as { id: string; name: string; university: string | null },
+  };
+}
+
+const FRIENDSHIP_SELECT = "id, requester_id, addressee_id, status, created_at, requester:profiles!requester_id(id, name, university), addressee:profiles!addressee_id(id, name, university)";
+
+export const useGetFriends = () =>
+  useQuery({
+    queryKey: ["/friends"],
+    queryFn: async () => {
+      const myId = await getCurrentUserId();
+      const { data, error } = await supabase
+        .from("friendships")
+        .select(FRIENDSHIP_SELECT)
+        .or(`requester_id.eq.${myId},addressee_id.eq.${myId}`)
+        .eq("status", "accepted");
+      if (error) throw error;
+      return (data ?? []).map((f) => normalizeFriendship(f, myId));
+    },
+  });
+
+export const useGetPendingRequests = () =>
+  useQuery({
+    queryKey: ["/friends/pending"],
+    queryFn: async () => {
+      const myId = await getCurrentUserId();
+      const { data, error } = await supabase
+        .from("friendships")
+        .select(FRIENDSHIP_SELECT)
+        .eq("addressee_id", myId)
+        .eq("status", "pending");
+      if (error) throw error;
+      return (data ?? []).map((f) => normalizeFriendship(f, myId));
+    },
+  });
+
+export const useSearchUsers = (query: string) =>
+  useQuery({
+    queryKey: ["/users/search", query],
+    queryFn: async () => {
+      if (!query.trim()) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, name, university")
+        .ilike("name", `%${query.trim()}%`)
+        .eq("profile_completed", true)
+        .limit(10);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: query.trim().length >= 2,
+  });
+
+export const useSendFriendRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (addresseeId: string) => {
+      const myId = await getCurrentUserId();
+      if (myId === addresseeId) throw { error: "You can't add yourself." };
+      const { error } = await supabase.from("friendships").insert({ requester_id: myId, addressee_id: addresseeId });
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/friends"] });
+      qc.invalidateQueries({ queryKey: ["/friends/pending"] });
+    },
+  });
+};
+
+export const useAcceptFriendRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (friendshipId: number) => {
+      const { error } = await supabase.from("friendships").update({ status: "accepted" }).eq("id", friendshipId);
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/friends"] });
+      qc.invalidateQueries({ queryKey: ["/friends/pending"] });
+    },
+  });
+};
+
+export const useDeclineFriendRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (friendshipId: number) => {
+      const { error } = await supabase.from("friendships").delete().eq("id", friendshipId);
+      if (error) throw { error: error.message };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/friends/pending"] }),
+  });
+};
+
+export const useGetInviteToken = () =>
+  useQuery({
+    queryKey: ["/friends/invite-token"],
+    queryFn: async () => {
+      const myId = await getCurrentUserId();
+      const { data: existing } = await supabase
+        .from("friend_invite_tokens")
+        .select("token")
+        .eq("user_id", myId)
+        .maybeSingle();
+      if (existing) return existing.token as string;
+      const { data: created, error } = await supabase
+        .from("friend_invite_tokens")
+        .insert({ user_id: myId })
+        .select("token")
+        .single();
+      if (error) throw error;
+      return created.token as string;
+    },
+  });
+
+export const useAcceptInviteToken = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data: row, error: lookupErr } = await supabase
+        .from("friend_invite_tokens")
+        .select("user_id")
+        .eq("token", token)
+        .maybeSingle();
+      if (lookupErr || !row) throw { error: "Invalid or expired invite link." };
+      const myId = await getCurrentUserId();
+      if (row.user_id === myId) throw { error: "That's your own invite link." };
+      const { error } = await supabase
+        .from("friendships")
+        .insert({ requester_id: myId, addressee_id: row.user_id });
+      if (error && error.code !== "23505") throw { error: error.message };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/friends"] });
+      qc.invalidateQueries({ queryKey: ["/friends/pending"] });
+    },
+  });
+};

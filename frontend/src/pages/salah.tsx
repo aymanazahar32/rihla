@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
 import {
@@ -24,14 +24,42 @@ export default function SalahPage() {
   const { location } = useGeolocation();
   const upsertMasjid = useUpsertMasjid();
 
+  const [titleVisible, setTitleVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y > lastScrollY.current && y > 60) setTitleVisible(false);
+      else if (y < lastScrollY.current) setTitleVisible(true);
+      lastScrollY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   // Use real nearby masjids when location is available; fall back to seeded DB list
   const { data: nearbyMasjids = [], isLoading: nearbyLoading } = useNearbyMasjids(
     location?.lat, location?.lng,
   );
   const { data: dbMasjids = [], isLoading: dbLoading } = useListMasjids();
 
-  const masjids = location ? nearbyMasjids : dbMasjids;
-  const isLoading = location ? nearbyLoading : dbLoading;
+  // Merge Google Places results with DB masjids so manually-seeded masjids always appear.
+  // Deduplicate by google_place_id; DB entries fill in gaps Places API misses.
+  const masjids = useMemo(() => {
+    if (!location) return dbMasjids;
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const m of nearbyMasjids) {
+      if (m.googlePlaceId) seen.add(m.googlePlaceId);
+      merged.push(m);
+    }
+    for (const m of dbMasjids) {
+      if (m.googlePlaceId && seen.has(m.googlePlaceId)) continue;
+      merged.push(m);
+    }
+    return merged;
+  }, [location, nearbyMasjids, dbMasjids]);
+  const isLoading = nearbyLoading || dbLoading;
 
   const { data: timings } = useAladhanTimings(location?.lat, location?.lng);
 
@@ -99,23 +127,23 @@ export default function SalahPage() {
 
   return (
     <Layout>
-      <div className="mb-5">
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${titleVisible ? "max-h-24 opacity-100 mb-5" : "max-h-0 opacity-0 mb-0"}`}>
         <h1 className="text-3xl font-extrabold tracking-tight">Salah</h1>
         <p className="text-muted-foreground mt-1 text-sm">Find a ride to prayer near you</p>
       </div>
 
-      {/* Live prayer times banner (from Aladhan, based on user GPS) */}
+      {/* Live prayer times banner — sticky below the app header */}
       {timings && (
-        <div className="mb-5 rounded-2xl bg-gradient-to-br from-primary/8 to-indigo-50/60 ring-1 ring-primary/15 p-4">
-          <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Today's Prayer Times</p>
+        <div className="sticky top-16 z-30 mb-5 rounded-2xl bg-gradient-to-br from-indigo-600 via-primary to-indigo-800 p-4 shadow-xl shadow-indigo-500/30">
+          <p className="text-xs font-bold text-white/70 uppercase tracking-widest mb-3">Today's Prayer Times</p>
           <div className="grid grid-cols-5 gap-2">
-            {PRAYERS.map(({ key, label, timingKey, Icon, bg, text }) => (
+            {PRAYERS.map(({ key, label, timingKey, Icon }) => (
               <div key={key} className="flex flex-col items-center gap-1">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${bg}`}>
-                  <Icon className={`w-4 h-4 ${text}`} />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/15">
+                  <Icon className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-[10px] font-semibold text-foreground">{label}</span>
-                <span className="text-[11px] font-bold text-muted-foreground tabular-nums">
+                <span className="text-[10px] font-semibold text-white/80">{label}</span>
+                <span className="text-[11px] font-extrabold text-white tabular-nums">
                   {timings[timingKey as keyof typeof timings] ?? "—"}
                 </span>
               </div>
@@ -161,8 +189,12 @@ export default function SalahPage() {
                   )}
 
                   {/* Masjid image banner */}
-                  {m.imageUrl && (
+                  {m.imageUrl ? (
                     <div className="h-28 bg-cover bg-center" style={{ backgroundImage: `url(${m.imageUrl})` }} />
+                  ) : (
+                    <div className="h-28 bg-gradient-to-br from-primary/20 via-indigo-100 to-emerald-100 flex items-center justify-center">
+                      <Moon className="w-10 h-10 text-primary/30" />
+                    </div>
                   )}
 
                   <CardContent className="p-0">
