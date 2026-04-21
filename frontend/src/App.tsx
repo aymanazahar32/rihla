@@ -5,7 +5,25 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGetMe } from "@/lib/api-client";
 import { useMatchingEngine } from "@/lib/useMatchingEngine";
 import { useLocation } from "wouter";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, Component, type ErrorInfo } from "react";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error(error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 text-center">
+          <p className="text-lg font-semibold">Something went wrong</p>
+          <p className="text-sm text-muted-foreground">{(this.state.error as Error).message}</p>
+          <button className="text-sm underline" onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { Layout } from "@/components/Layout";
 import { ModeProvider } from "@/lib/ModeContext";
 import { NLPrefillProvider } from "@/lib/NLPrefillContext";
@@ -141,17 +159,19 @@ function MatchingEngineMount() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <NLPrefillProvider>
-          <ModeProvider>
-            <MatchingEngineMount />
-            <Router />
-            <Toaster />
-          </ModeProvider>
-        </NLPrefillProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <NLPrefillProvider>
+            <ModeProvider>
+              <MatchingEngineMount />
+              <Router />
+              <Toaster />
+            </ModeProvider>
+          </NLPrefillProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

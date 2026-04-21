@@ -9,7 +9,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, ArrowRight, Moon, Sun, Sunset, Sunrise, Star, Loader2 } from "lucide-react";
+import { MapPin, ArrowRight, Moon, Sun, Sunset, Sunrise, Star, Loader2, Car } from "lucide-react";
 
 const PRAYERS = [
   { key: "fajr",    label: "Fajr",    timingKey: "Fajr",    dbKey: "fajr",    Icon: Moon,    bg: "bg-indigo-100", text: "text-indigo-700",  dot: "bg-indigo-400" },
@@ -79,15 +79,21 @@ export default function SalahPage() {
 
   // Distance in miles for nearby results (Google Places doesn't return distance directly)
   const masjidsWithDist = useMemo(() => {
-    return (masjids as any[]).map((m) => {
-      if (!location || !m.lat || !m.lng) return { ...m, distMi: null };
+    const mapped = (masjids as any[]).map((m) => {
+      if (!location || !m.lat || !m.lng) return { ...m, distMi: null, driveMin: null };
       const R = 3959;
       const dLat = (m.lat - location.lat) * Math.PI / 180;
       const dLng = (m.lng - location.lng) * Math.PI / 180;
       const a = Math.sin(dLat / 2) ** 2 +
         Math.cos(location.lat * Math.PI / 180) * Math.cos(m.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
       const distMi = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return { ...m, distMi };
+      const driveMin = Math.max(2, Math.round(distMi * 1.4 / 25 * 60));
+      return { ...m, distMi, driveMin };
+    });
+    return mapped.sort((a, b) => {
+      if (a.distMi === null) return 1;
+      if (b.distMi === null) return -1;
+      return a.distMi - b.distMi;
     });
   }, [masjids, location]);
 
@@ -164,11 +170,17 @@ export default function SalahPage() {
                     <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="font-bold text-base leading-tight truncate">{m.name}</h3>
-                        <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          <span className="truncate">
-                            {m.distMi !== null ? `${m.distMi.toFixed(1)} mi away` : m.address}
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            {m.distMi !== null ? `${m.distMi.toFixed(1)} mi` : m.address}
                           </span>
+                          {m.driveMin !== null && (
+                            <span className="flex items-center gap-1 text-primary font-medium">
+                              <Car className="w-3 h-3 shrink-0" />
+                              ~{m.driveMin} min
+                            </span>
+                          )}
                         </div>
                         {m.description && (
                           <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{m.description}</p>
